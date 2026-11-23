@@ -1,111 +1,59 @@
 # Anti-REA v1.0 — Push Checklist (for https://github.com/projectgtp/Anti-REA)
 
-Status: **NOT pushed.** This file is the pre-push review. The parent
-agent approves the push separately; nobody pushes from this round.
+Status: **PUSHED 2026-11-23 15:20.** Head `4f62f5f0`, 6 commits on `main`,
+183 files / 7.0 MB. Verified live on the GitHub commits page by the
+parent agent. Full details + full source code, per the user's order
+("push full details + source code", 2026-11-23 15:16, superseding the
+earlier tester-first hold).
 
-Repo state: created 2026-11-23 10:24, head `0b984eb2`, contains only
-LICENSE. This tree is the push content (plus that LICENSE).
+Repo state: created 2026-11-23 10:24, head `0b984eb2` (LICENSE only)
+before the push. The push went in 5 text-only batches (the first
+single 7 MB attempt was refused with HTTP 413); each batch needed
+one user approval.
 
-## How to push (after approval)
+## Current state (2026-11-23)
 
-```bash
-cd ~/workspace/anti-rea/v1.0
-git init -b main            # only if the directory is not already a clone
-git remote add origin https://github.com/projectgtp/Anti-REA.git
-git add -A                  # .gitignore excludes the items in § Excluded
-git status --short          # MUST match § Included, nothing else
-git commit -m "Anti-REA v1.0: standalone protection CLI (43 implemented layers, attack PASS)"
-git push -u origin main
-```
+- Layers: **99 IMPLEMENTED / 4 PARTIAL / 0 PLANNED of 103.**
+  The 4 partials (L15, L60, L91, L98) need a phone, the RE tester,
+  or a working Gradle host to finish. See FINAL-6-REPORT.md.
+- L60 self-changing code is ON by default per user order
+  (2026-11-23 14:03), with an opt-out flag
+  (`experimental.self_changing_code: false`) and a danger warning
+  in docs/L60-SELF-CHANGING-CODE.md.
+- End-to-end verification: `tools/run_all.py` 17/17 PASS; test-app
+  and Bridge 2.14.0 full protects PASS; service API smoke PASS;
+  self-check 64 files OK. See FULL-LAYERS-REPORT.md
+  (sha256 `09b309b6…`).
+- Public README has NO weakness reveal, per user order
+  (2026-11-23 14:54). Honest limits live in the internal reports
+  only, never in README.md.
 
-Then verify on GitHub: repo shows README.md, no APK with a stable
-key, no keystore, no `__pycache__`, no `.idsig`, no `runtime/build/`.
+## What was pushed (6 commits)
 
-## Included (exact files)
+| Commit | Contents |
+|---|---|
+| `fec0c25e` | v1.0 tree, 179 files: CLI, transformer, runtime, verifier, tools, server, service, gradle-plugin, profiles, public README, docs, registry, all reports, tests, tester-pack brief |
+| `384e5f59` | Bridge full-protect REA-IR manifest |
+| `97e6dc4f` | Bridge final-6 REA-IR manifest |
+| `f0d8f60c` | Test-app full-protect REA-IR manifest |
+| `4f62f5f0` | Test-app final-6 REA-IR manifest |
+| (this file) | PUSH-CHECKLIST.md updated to the pushed state |
 
-```
-.gitignore
-README.md
-TOOL-COVERAGE.md
-VERIFICATION-REPORT-v1.0.md
-SELF-PROTECT-REPORT.md       (L101 + self-protection, 2026-11-23)
-GAMEGUARDIAN-FIX-REPORT.md   (L102 GameGuardian + L103 repack, 2026-11-23)
-PUSH-CHECKLIST.md            (this file)
-anti-rea.py
-anti-rea.yaml
-anti-rea.manifest.json       (self-check inventory, hashes only, no secrets)
-docs/SERVER.md
-docs/TRAPS.md
-docs/USAGE.md
-docs/SELF-PROTECTION.md
-docs/GAMEGUARDIAN.md        (L102/L103 plain-words doc, 2026-11-23)
-layers/REGISTRY.md
-layers/MT-LIKE-BLOCKLIST.md   (L101 blocklist — plaintext package names, docs only, NOT shipped in any APK)
-runtime/NOTES.md
-runtime/ReaEnv.kt
-runtime/ReaGuardProvider.kt
-runtime/ReaIntegrity.kt
-runtime/ReaRuntime.kt
-runtime/ReaTraps.kt
-runtime/ReaModBlock.kt
-runtime/ModBlockData.kt      (generated encrypted blobs — no plaintext names)
-runtime/ReaTrace.kt          (L102, 2026-11-23)
-runtime/ReaMemory.kt         (L102, 2026-11-23)
-runtime/ReaRepack.kt         (L103, 2026-11-23)
-runtime/build_smali.sh
-runtime/smali/com/antirea/runtime/*.smali   (26 files)
-runtime/tests/Main.kt
-runtime/tests/ModBlockTest.kt
-runtime/tests/GameGuardianFixTest.kt   (L102/L103 JVM test, 2026-11-23)
-runtime/tests/gen_test_blob.py
-runtime/tests/test_blob.txt                  (invented test values only)
-tools/make_manifest.py
-tools/gen_modblock_blobs.py
-tools/make_sig_blob.py       (L103, 2026-11-23)
-tests/README.md
-tests/attack-bridge-full-report.json
-tests/attack-bridge-report.json
-tests/attack-selftest-report.json
-tests/attack-testapp-report.json
-tests/attack-selfprotect-report.json   (L101 re-protect, 2026-11-23, PASS)
-tests/bridge-2.14.0-v10-protected.apk       (TEST keystore — see below)
-tests/bridge.yaml
-tests/build_testapp.sh
-tests/frida-smoke-control.json
-tests/frida-smoke-testapp-report.json
-tests/testapp-rea-ir/testapp-protected.antirea.json
-tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json
-tests/testapp.yaml
-tests/testapp/AndroidManifest.xml
-tests/testapp/res/layout/activity_main.xml
-tests/testapp/res/values/strings.xml
-tests/testapp/src/main/java/com/antirea/testapp/MainActivity.kt
-tests/testapp/testapp-control.apk           (generic test app, test key)
-tests/testapp/testapp-protected.apk          (TEST keystore)
-tests/testapp/testapp-protected-l101.apk     (TEST keystore, L101 runtime, 2026-11-23)
-tests/testapp/testapp-protected-ggfix.apk    (TEST keystore, L102/L103 runtime, 2026-11-23, attack PASS)
-tests/testapp/testapp-tampered.apk          (UNSIGNED tampered evidence)
-transformer/config.py
-transformer/crypto.py
-transformer/smali.py
-transformer/source.py
-verifier/attack.py
-verifier/frida_smoke.py
-verifier/tamper.py
-```
+## NOT on GitHub yet (binaries — the connector only takes text)
 
-## Excluded (never push — `.gitignore` covers them)
+- All protected/test APKs (`tests/bridge-*.apk`,
+  `tests/testapp/*.apk`) — test keystores only, no stable key.
+- `tester-pack.zip` (3.5 MB) — 2 protected APKs + TESTER-BRIEF.md
+  only, no source, no keys. Send it to the RE tester directly.
+- `runtime/native/lib/arm64-v8a/libreagate.so` — rebuildable; its
+  C source (`runtime/native/reagate.c`) IS pushed.
+- `.jar` test artifacts and `.idsig` sidecars.
 
-- `transformer/__pycache__/`, `verifier/__pycache__/` — bytecode caches.
-- `*.idsig` — apksigner sidecar files, not part of any APK.
-- `runtime/build/` (`classes.dex`, `runtime.jar`) — regenerable via
-  `runtime/build_smali.sh`.
-- `runtime/tests/test.jar` — regenerable JVM test artifact.
-- Any `*.keystore`, `*.jks`, `*.pem`, `*.key` — none exist in this
-  tree; the CLI generates an ephemeral test keystore per run inside
-  a temporary workdir, never in the tree.
+Getting them onto GitHub needs a normal git push or a GitHub
+Release upload — a separate task, pending user decision
+(2026-11-23 15:21, user asked why they are not on GitHub).
 
-## Secret / key audit (checked 2026-11-23)
+## Secret / key audit (checked 2026-11-23, before the push)
 
 - **No real secrets.** The only key-like values in the tree are:
   - `AKIAIOSFAKEEXAMPLE` in `anti-rea.yaml`, `tests/bridge.yaml`,
@@ -129,31 +77,37 @@ verifier/tamper.py
     2026-11-23; see SELF-PROTECT-REPORT.md). The names are public
     package identifiers, not secrets, but keeping them out of the
     shipped dex is the point of the blob design.
-- **No stable-key APKs.** The Bridge protected APK is signed with
+- **No stable-key APKs.** The Bridge protected APKs are signed with
   an ephemeral test keystore and will NOT install over the
   stable-key Bridge 2.14.0. The test-app APKs use test keys. The
   Bridge 2.14.0 control APK is NOT in this tree (it lives in
   `~/workspace/bridge-marketplace/`).
 - **No Bridge live source.** Nothing under
-  `~/workspace/bridge-marketplace/` is copied here except the
-  protected test APK built from it.
+  `~/workspace/bridge-marketplace/` is copied here. The pushed
+  Bridge REA-IR manifests (`tests/bridge-*-rea-ir/*.json`) contain
+  only hashes, layer names, counts, and fake honeypots — 0 Bridge
+  URLs, 0 Bridge code, verified by grep 2026-11-23.
 - **No user credentials, no keystore passwords, no API keys.**
   The `storepass`/`keypass` words appear only in code/docs
   describing the ephemeral test keystore flow.
 
-## Pre-push verification (all done 2026-11-23)
+## Excluded (never push — `.gitignore` covers them)
 
-- [x] `anti-rea.py layers --list` → 100 slots, 40 / 2 / 58.
-- [x] Attack PASS, Bridge + test app (see VERIFICATION-REPORT-v1.0.md).
-- [x] Tamper PASS (JVM level).
-- [x] REA-IR contains zero plaintext needles (byte-searched).
-- [x] `find . -type f` reviewed; excluded files are all in `.gitignore`.
-- [x] No push made in this round.
+- `transformer/__pycache__/`, `verifier/__pycache__/` — bytecode caches.
+- `*.idsig` — apksigner sidecar files, not part of any APK.
+- `runtime/build/` (`classes.dex`, `runtime.jar`) — regenerable via
+  `runtime/build_smali.sh`.
+- `runtime/tests/test.jar` — regenerable JVM test artifact.
+- Any `*.keystore`, `*.jks`, `*.pem`, `*.key` — none exist in this
+  tree; the CLI generates an ephemeral test keystore per run inside
+  a temporary workdir, never in the tree.
 
-## After the push (not this round)
+## After the push
 
 - Tag the release (`v1.0.0`) once the push is verified on GitHub.
 - The real red-team test (user's reverse-engineering contact)
-  happens on v1.0 after the push, not before.
-- Service layer (API / web upload / dashboard) comes after v1.0;
-  it is NOT in this tree.
+  happens on v1.0 with the regenerated tester pack
+  (`tester-pack.zip`, sha256 `85e9a9e3…`, 3.5 MB).
+- Bridge protection with Anti-REA comes after the push, per user
+  order — the 2.16.0 Bridge build is waiting for it.
+- Service layer (API / web upload / dashboard) comes after v1.0.
