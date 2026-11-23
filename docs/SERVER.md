@@ -4,14 +4,14 @@ v1.0 changes NO live server. It defines what the protected app sends
 so a server CAN enforce. The server remains the real enforcement:
 client checks are signals, not proof.
 
-## Attestation payload — `antirea-attestation/v1` (L61)
+## Attestation payload — `attestation/v1` (L61)
 
 The app sends this (over its normal authenticated channel) when it
 starts and before sensitive actions:
 
 ```json
 {
-  "type": "antirea-attestation/v1",
+  "type": "attestation/v1",
   "app_package": "com.example.app",
   "build_id": "1.0.0+<rea-ir hash>",
   "dex_sha256": "<sha256 of classes.dex>",
@@ -28,14 +28,14 @@ Server rules (recommended, not implemented here):
   a high score means step-up verification, not instant punishment.
 - Rate-limit failed attestations per device/account (L66, planned).
 
-## Tripwire event — `antirea-tripwire/v1` (L62/L63)
+## Tripwire event — `tripwire/v1` (L62/L63)
 
 Sent (or logged locally and synced) when a honeypot is used, integrity
 fails, or the environment is suspicious:
 
 ```json
 {
-  "type": "antirea-tripwire/v1",
+  "type": "tripwire/v1",
   "tripwire_id": "honeypot-secret-01",
   "kind": "honeypot_secret_used",
   "app_package": "com.example.app",

@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * Anti-REA v1.0 environment checks, batch 2 — L38–L45.
@@ -28,8 +28,32 @@ package com.antirea.runtime
  */
 object ReaEnv2 {
 
-    /** Clone markers checked (substring, case-insensitive) in L43. */
+    /** Clone markers checked (whole-token match, case-insensitive) in L43. */
     val CLONE_MARKERS: List<String> = listOf("parallel", "dual", "clone")
+
+    /**
+     * True when [marker] matches a whole word-token of [text]:
+     * the text is lowercased and split on every run of
+     * non-alphanumeric characters ("/", ".", "_", "-", …), and the
+     * marker fires when a token STARTS WITH it. That keeps every
+     * real cloner name ("com.lbe.parallel.intl" -> token
+     * "parallel"; "com.dualspace.multispace" -> token "dualspace";
+     * "com.cloner.installer" -> token "cloner"; "ParallelSpace" ->
+     * token "parallelspace") while fixing the old substring false
+     * positives: "dual" no longer fires inside "individual", and
+     * "clone" no longer fires inside "myclone" or "cloned-app"
+     * (a token must START with the marker, not merely contain it).
+     * A path segment literally named "clone" still fires — a name
+     * alone cannot tell an innocent folder called "clone" from a
+     * cloner path, so that one stays a documented false positive
+     * (signal only, never a refusal by itself).
+     */
+    fun containsCloneMarkerToken(text: String, marker: String): Boolean {
+        val lower = marker.lowercase()
+        if (lower.isEmpty()) return false
+        return text.lowercase().split(Regex("[^a-z0-9]+"))
+            .any { token -> token.isNotEmpty() && token.startsWith(lower) }
+    }
 
     /**
      * L44 tolerance: wall-clock vs elapsed-time skew within this many
@@ -266,28 +290,29 @@ object ReaEnv2 {
      *   substring markers, in case the installer itself is a cloner.
      *
      * Detected when any of [CLONE_MARKERS] ("parallel", "dual",
-     * "clone") appears as a substring (case-insensitive) in the
-     * package path or the installer package name.
+     * "clone") matches a whole word-token (case-insensitive) in the
+     * package path or the installer package name — see
+     * [containsCloneMarkerToken]. A token must START WITH the
+     * marker: "dual" inside "individual" does NOT fire any more.
      *
-     * FALSE POSITIVES, stated plainly: this is a substring match, so
-     * ANY innocent name containing one of those words flags. A user
-     * folder literally named "clone" flags. Worse, "dual" is a
-     * substring of "individual" — a package or path containing
-     * "individual" flags. A cloned app whose cloner hides its path
-     * evades this entirely. This is a cheap heuristic signal, never
-     * proof the app is cloned and never a refusal by itself.
+     * FALSE POSITIVE, still present and stated plainly: a path
+     * segment literally named "clone" fires (an innocent folder
+     * called "clone" is indistinguishable from a cloner path by
+     * name alone). A cloned app whose cloner hides its path evades
+     * this entirely. This is a cheap heuristic signal, never proof
+     * the app is cloned and never a refusal by itself.
      *
      * The evidence names only the matched marker and where it was
      * found (path vs installer) — it never echoes the full path.
      */
     fun appClonerDetected(packagePath: String, installerPackage: String?): ReaEnv.Finding {
         return try {
-            val lowerPath = packagePath.lowercase()
-            val lowerInstaller = installerPackage?.lowercase() ?: ""
             val hits = mutableListOf<String>()
             for (marker in CLONE_MARKERS) {
-                if (lowerPath.contains(marker)) hits.add("path:'$marker'")
-                if (lowerInstaller.contains(marker)) hits.add("installer:'$marker'")
+                if (containsCloneMarkerToken(packagePath, marker)) hits.add("path:'$marker'")
+                if (installerPackage != null &&
+                    containsCloneMarkerToken(installerPackage, marker)
+                ) hits.add("installer:'$marker'")
             }
             ReaEnv.Finding(
                 name = "app-cloner",

@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * Anti-REA v1.0 — L49 native integrity gate.
@@ -57,13 +57,35 @@ object ReaNative {
     external fun nativeVersion(): String
 
     /**
+     * Safe wrapper for [nativeVersion]: null (never a throw) when the
+     * .so is absent or the JNI call fails. The raw [nativeVersion] is
+     * an external fun with no wrapper, so a direct call throws
+     * UnsatisfiedLinkError when libreagate.so is missing — callers
+     * must use this wrapper, not the raw JNI method. (Crash hunt
+     * 2026-11-23: nothing calls it at startup in v1.0, but any
+     * future caller must not be able to kill the app this way.)
+     */
+    fun nativeVersionSafe(): String? {
+        if (!nativeLoaded) return null
+        return try {
+            nativeVersion()
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    /**
      * Pure-Kotlin gate (the fallback): SHA-256 [data] compared with
-     * [expectedHex] (case-insensitive). False on any error, never
+     * [expectedHex] (case-insensitive). Compared with
+     * [ReaIntegrity2.hexEqualsConstantTime] — the old plain `==`
+     * short-circuited on the first differing character, leaking the
+     * mismatch position by timing, while the native gate this
+     * mirrors compares in constant time. False on any error, never
      * throws.
      */
     fun javaGate(expectedHex: String, data: ByteArray): Boolean {
         return try {
-            ReaRuntime.sha256Hex(data) == expectedHex.lowercase()
+            ReaIntegrity2.hexEqualsConstantTime(ReaRuntime.sha256Hex(data), expectedHex)
         } catch (e: Exception) {
             false
         }

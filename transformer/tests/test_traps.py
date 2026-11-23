@@ -8,6 +8,17 @@ or:
 Stdlib only. Each test asserts the trap's marker/tripwire id is
 present and the snippet is well-formed (balanced braces, matching
 .method/.end method pairs, parseable JSON/XML where applicable).
+
+CONTENT RULE (2026-11-23 cleanup): every planted decoy string must
+read like a file a real app would ship — it must NOT contain the
+protector's name ("antirea", case-insensitive) or the word "decoy"
+(case-insensitive), while STILL containing the tripwire id
+("honeypot-secret-01"). TestNoSelfIdentifyingContent enforces this
+for every planted content generator. chain_traps() is NOT in that
+list: it returns a Python data structure for the CLI/server, not a
+planted file, and its "tripwire_type" is the server-protocol label
+shared verbatim with server/reference.py and anti-rea.py
+tripwire_format() — renaming it needs a coordinated change there.
 """
 import json
 import struct
@@ -42,11 +53,61 @@ def _smali_well_formed(text):
     return ".class public L" in text
 
 
+def _planted_contents():
+    """Every string/bytes blob that gets planted into a protected
+    build, as (label, text). chain_traps() is deliberately excluded:
+    it is CLI/server data, not planted content (see module docstring).
+    """
+    return [
+        ("fake_login_flow", traps.fake_login_flow()),
+        ("fake_crash", traps.fake_crash()),
+        ("slow_maze", traps.slow_maze()),
+        ("fake_update_prompt", traps.fake_update_prompt()),
+        ("fake_config_file", traps.fake_config_file()),
+        ("fake_native_lib", traps.fake_native_lib()),
+        ("fake_stack_traces", traps.fake_stack_traces()),
+        ("fake_error_messages", "\n".join(traps.fake_error_messages())),
+        ("honeypot_admin_panel", traps.honeypot_admin_panel()),
+    ]
+
+
 class TestTrapsShared(unittest.TestCase):
     def test_shared_tripwire_id(self):
         # The shared id from L71-L75 honeypots (docs/SERVER.md).
         self.assertEqual(traps.TRIPWIRE_ID, "honeypot-secret-01")
-        self.assertEqual(traps.TRIPWIRE_TYPE, "antirea-tripwire/v1")
+        # Protocol label shared with server/reference.py and
+        # anti-rea.py tripwire_format() — see module docstring.
+        self.assertEqual(traps.TRIPWIRE_TYPE, "tripwire/v1")
+
+
+class TestNoSelfIdentifyingContent(unittest.TestCase):
+    def test_no_planted_content_names_protector_or_decoy(self):
+        for label, content in _planted_contents():
+            text = (content.decode("utf-8", "replace")
+                    if isinstance(content, bytes) else content)
+            lowered = text.lower()
+            self.assertNotIn("antirea", lowered,
+                             "%s contains 'antirea'" % label)
+            self.assertNotIn("decoy", lowered,
+                             "%s contains 'decoy'" % label)
+
+    def test_every_planted_content_still_carries_tripwire_id(self):
+        for label, content in _planted_contents():
+            if label == "fake_native_lib":
+                # Binary 64-byte ELF header: it cannot carry a text
+                # marker without breaking the format, and it never
+                # did — the id lives in the text decoys, not here.
+                continue
+            self.assertIn(traps.TRIPWIRE_ID, content,
+                          "%s lost the tripwire id" % label)
+
+    def test_every_error_message_carries_tripwire_id(self):
+        for m in traps.fake_error_messages():
+            self.assertIn(traps.TRIPWIRE_ID, m)
+
+    def test_chain_still_carries_tripwire_id(self):
+        for step in traps.chain_traps("L76"):
+            self.assertEqual(step["tripwire_id"], traps.TRIPWIRE_ID)
 
 
 class TestL76FakeLogin(unittest.TestCase):
@@ -54,7 +115,7 @@ class TestL76FakeLogin(unittest.TestCase):
         s = traps.fake_login_flow()
         self.assertIn(traps.TRIPWIRE_ID, s)
         self.assertTrue(_smali_well_formed(s))
-        self.assertIn("FakeLogin", s)
+        self.assertIn("LoginManager", s)
         self.assertIn("login", s)
 
     def test_always_fails(self):
@@ -69,9 +130,9 @@ class TestL77FakeCrash(unittest.TestCase):
         s = traps.fake_crash()
         self.assertIn(traps.TRIPWIRE_ID, s)
         self.assertIn("FATAL EXCEPTION", s)
-        self.assertIn("antirea-decoy-crash", s)
+        self.assertIn("Session expired", s)
         # It is text, not a real crash: no raise/throw of a real error.
-        self.assertIn("FakeLogin", s)
+        self.assertIn("LoginManager", s)
 
 
 class TestL78SlowMaze(unittest.TestCase):
@@ -80,7 +141,8 @@ class TestL78SlowMaze(unittest.TestCase):
         self.assertIn(traps.TRIPWIRE_ID, s)
         self.assertTrue(_smali_well_formed(s))
         self.assertIn("Thread;->sleep", s)
-        self.assertIn("SlowMaze", s)
+        self.assertIn("RetryWorker", s)
+        self.assertIn("backoff", s)
 
 
 class TestL79FakeUpdatePrompt(unittest.TestCase):
@@ -89,8 +151,9 @@ class TestL79FakeUpdatePrompt(unittest.TestCase):
         self.assertIn(traps.TRIPWIRE_ID, s)
         root = ET.fromstring(s)  # must be valid XML
         names = [c.get("name") for c in root]
-        self.assertIn("antirea_decoy_update_title", names)
-        self.assertIn("antirea_decoy_update_url", names)
+        self.assertIn("update_title", names)
+        self.assertIn("update_url", names)
+        self.assertIn("update_ref", names)
         self.assertIn("example.invalid",
                       "".join(c.text or "" for c in root))
 
@@ -99,8 +162,9 @@ class TestL80FakeConfig(unittest.TestCase):
     def test_marker_and_json(self):
         s = traps.fake_config_file()
         cfg = json.loads(s)  # must be valid JSON
-        self.assertEqual(cfg["tripwire_id"], traps.TRIPWIRE_ID)
-        self.assertTrue(cfg["antirea_decoy"])
+        self.assertEqual(cfg["installation_id"], traps.TRIPWIRE_ID)
+        self.assertNotIn("tripwire_id", cfg)
+        self.assertNotIn("tripwire_type", cfg)
         self.assertIn("api_key", cfg)
         self.assertIn("fake", cfg["api_key"])
         self.assertIn("example.invalid", cfg["admin_url"])
@@ -131,8 +195,9 @@ class TestL82FakeStackTraces(unittest.TestCase):
     def test_marker(self):
         s = traps.fake_stack_traces()
         self.assertIn(traps.TRIPWIRE_ID, s)
-        self.assertIn("antirea-decoy-stacktrace", s)
-        self.assertIn("DecoyAdmin", s)
+        self.assertIn("SecurityException", s)
+        self.assertIn("Session token invalid", s)
+        self.assertIn("AdminPanel", s)
 
 
 class TestL83FakeErrors(unittest.TestCase):
@@ -141,7 +206,8 @@ class TestL83FakeErrors(unittest.TestCase):
         self.assertGreaterEqual(len(msgs), 3)
         for m in msgs:
             self.assertIn(traps.TRIPWIRE_ID, m)
-            self.assertIn("antirea-decoy-error", m)
+            self.assertNotIn("antirea-decoy-error", m)
+            self.assertIn("[ref: ", m)
 
 
 class TestL84HoneypotAdmin(unittest.TestCase):
@@ -149,7 +215,7 @@ class TestL84HoneypotAdmin(unittest.TestCase):
         s = traps.honeypot_admin_panel()
         self.assertIn(traps.TRIPWIRE_ID, s)
         self.assertTrue(_smali_well_formed(s))
-        self.assertIn("DecoyAdmin", s)
+        self.assertIn("AdminPanel", s)
         self.assertIn("grantAdmin", s)
         self.assertIn("openPanel", s)
 

@@ -12,10 +12,16 @@ static tools and counts LITERAL (not regex) occurrences of each needle:
 
 Verdict (v1.0 rule — see notes below):
   PASS  iff (a) every tool ran without error, (b) protected == 0 for
-        every needle in every tool, (c) every needle has control > 0
-        in AT LEAST ONE tool, and (d) every tool finds control > 0
-        for at least one needle (tool sanity: a tool that sees
-        nothing at all is broken, not clean).
+        every needle in every tool, (c) every GIVEN needle has
+        control > 0 in AT LEAST ONE tool, and (d) every tool finds
+        control > 0 for at least one GIVEN needle (tool sanity: a
+        tool that sees nothing at all is broken, not clean).
+  Given needles are the ones passed on the command line; DERIVED
+  needles (bare host, scheme/www/port/encoded variants expanded
+  from them via transformer/config.py derive_needles) must also be
+  0 in protected, but may be 0 in control — most derived spellings
+  never occur in the control, and demanding control > 0 for them
+  would fail every run. They are recorded as derived_vacuous.
   FAIL  otherwise. A needle that is vacuous in ONE tool but
         non-vacuous in another is recorded in `vacuous_in_tool`,
         not a failure — some needles are invisible to some tools
@@ -84,6 +90,69 @@ BIN = HOME / "workspace/tools/bin"
 JADX = BIN / "jadx"
 APKTOOL = BIN / "apktool"
 
+# --- Needle auto-derivation (same contract as transformer/config.py) ---
+# The needles given on the command line are EXPANDED through
+# config.derive_needles() before counting, so a run that only lists
+# the full URL also checks its bare host, scheme/www/port/trailing-
+# slash/encoded variants (the Bridge bare-domain slip class).
+# The verdict treats the two sets differently, on purpose:
+#   * GIVEN needles: protected must be 0 AND control must be > 0 in
+#     at least one tool (the anti-vacuity guarantee — unchanged).
+#   * DERIVED needles: protected must be 0, but control may be 0.
+#     Most derived variants (ws://, :443, URL-encoded spellings)
+#     never occur in the control at all; demanding control > 0 for
+#     them would fail every run for a reason unrelated to
+#     protection. A derived needle that DOES occur in control and is
+#     0 in protected is the proof the derivation mattered (e.g. the
+#     bare host); a derived needle that occurs in protected is a
+#     FAIL, same as a given one. Derived needles with control == 0
+#     are recorded in the report as derived_vacuous, not failures.
+# transformer/config.py is the authority when importable; the local
+# fallback below is the same minimal contract (see anti-rea.py).
+_SCHEME_HOST_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://([^/?#\s\"']+)")
+
+
+def _derive_needles_fallback(strings):
+    out, seen = [], set()
+
+    def add(v):
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+
+    for s in strings or []:
+        if not s:
+            continue
+        add(s)
+        add(s.rstrip("/"))
+        for m in _SCHEME_HOST_RE.finditer(s):
+            netloc = m.group(1)
+            hostport = netloc.rsplit("@", 1)[-1]
+            if not hostport:
+                continue
+            add(hostport)
+            if hostport.startswith("["):
+                host = hostport.split("]", 1)[0] + "]"
+            else:
+                host = hostport.split(":")[0]
+            # Bare host only — never the www-stripped form, so this
+            # stays a subset of config.derive_needles() (which adds
+            # www. but never strips it).
+            add(host)
+    return out
+
+
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent
+                           / "transformer"))
+    from config import derive_needles as _cfg_derive  # noqa: E402
+    derive_needles = _cfg_derive
+    NEEDLE_DERIVATION_SOURCE = "transformer/config.py"
+except Exception:  # noqa: BLE001 - config import must never break attack
+    derive_needles = _derive_needles_fallback
+    NEEDLE_DERIVATION_SOURCE = ("attack.py fallback (transformer/config.py "
+                                "unavailable)")
+
 
 def die(msg):
     print(f"ERROR: {msg}", file=sys.stderr)
@@ -116,10 +185,22 @@ def _read_text_file(path):
         return None
 
 
-def count_literal_in_tree(root, needle):
-    """Literal line count across every TEXT file under root
-    (binary files skipped — see _read_text_file)."""
-    total = 0
+_QUOTED_SPAN_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+
+def count_all_in_tree(root, needles, quoted):
+    """Single-pass literal count for EVERY needle across every TEXT
+    file under root (binary files skipped — see _read_text_file).
+
+    One walk, not one walk per needle: derivation can expand a
+    2-needle config into ~150 needles, and a per-needle walk would
+    re-read a big decompiled tree 150 times. Returns (counts dict,
+    files read). Quoted mode counts only occurrences inside a
+    `"..."` string literal (jadx); plain mode counts any line
+    containing the needle (apktool). A line counts at most once per
+    needle, matching the old per-needle `grep -F -c` semantics.
+    """
+    counts = {n: 0 for n in needles}
     files = 0
     for p in Path(root).rglob("*"):
         if not p.is_file():
@@ -128,11 +209,26 @@ def count_literal_in_tree(root, needle):
         if text is None:
             continue
         files += 1
-        total += count_literal_lines(text, needle)
-    return total, files
+        for line in text.splitlines():
+            if quoted:
+                spans = [m.group(1) for m in _QUOTED_SPAN_RE.finditer(line)]
+                if not spans:
+                    continue
+                for n in needles:
+                    if any(n in s for s in spans):
+                        counts[n] += 1
+            else:
+                for n in needles:
+                    if n in line:
+                        counts[n] += 1
+    return counts, files
 
 
-_QUOTED_SPAN_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
+def count_literal_in_tree(root, needle):
+    """Literal line count across every TEXT file under root
+    (binary files skipped — see _read_text_file)."""
+    total, files = count_all_in_tree(root, [needle], quoted=False)
+    return total[needle], files
 
 
 def count_quoted_lines(text, needle):
@@ -152,17 +248,44 @@ def count_quoted_lines(text, needle):
 
 def count_quoted_in_tree(root, needle):
     """Quote-aware literal count across every text file under root."""
-    total = 0
-    files = 0
-    for p in Path(root).rglob("*"):
-        if not p.is_file():
-            continue
-        text = _read_text_file(p)
-        if text is None:
-            continue
-        files += 1
-        total += count_quoted_lines(text, needle)
-    return total, files
+    total, files = count_all_in_tree(root, [needle], quoted=True)
+    return total[needle], files
+
+
+def extract_all_dex(apk_path, work, label):
+    """Extract EVERY classes*.dex from an APK into work/.
+
+    Returns a list of paths (sorted, classes.dex first). Raises
+    FileNotFoundError when the APK has no dex at all. The old code
+    extracted only classes.dex (or the first classes*.dex), so a
+    needle living in classes2.dex was invisible to strings_dex —
+    a false PASS on multi-dex APKs.
+    """
+    out_paths = []
+    with zipfile.ZipFile(apk_path) as z:
+        names = sorted(n for n in z.namelist()
+                       if re.fullmatch(r"classes\d*\.dex", n))
+        if not names:
+            raise FileNotFoundError("no classes*.dex in APK")
+        for i, name in enumerate(names):
+            out = work / f"{label}-classes{i + 1}.dex"
+            out.write_bytes(z.read(name))
+            out_paths.append(out)
+    return out_paths
+
+
+def strings_counts(dex_paths, needles):
+    """Run `strings` once per dex file and count every needle in
+    the output (single pass per file). Returns {needle: count}."""
+    counts = {n: 0 for n in needles}
+    for dex_path in dex_paths:
+        proc = subprocess.run(["strings", str(dex_path)],
+                              capture_output=True, text=True, timeout=120)
+        for line in proc.stdout.splitlines():
+            for n in needles:
+                if n in line:
+                    counts[n] += 1
+    return counts
 
 
 def run(cmd, env, timeout=600):
@@ -189,12 +312,22 @@ def main():
     if args.needles:
         needles += [n for n in args.needles.split(",") if n.strip()]
     if args.needles_file:
-        needles += [l.strip() for l in Path(args.needles_file).read_text().splitlines()
-                    if l.strip() and not l.strip().startswith("#")]
+        try:
+            needles += [l.strip() for l in Path(args.needles_file).read_text().splitlines()
+                        if l.strip() and not l.strip().startswith("#")]
+        except OSError as e:
+            die(f"cannot read needles file {args.needles_file}: {e}")
     # Deduplicate, keep order.
-    needles = list(dict.fromkeys(needles))
-    if not needles:
+    needles_given = list(dict.fromkeys(needles))
+    if not needles_given:
         die("no needles given (--needles or --needles-file required)")
+    # Expand through derivation (bare host etc.). The verdict holds
+    # GIVEN needles to the full anti-vacuity rule and DERIVED needles
+    # to protected==0 only (see the module note above).
+    needles = derive_needles(needles_given)
+    derived = [n for n in needles if n not in set(needles_given)]
+    print(f"needles: {len(needles_given)} given, {len(derived)} derived "
+          f"({NEEDLE_DERIVATION_SOURCE})")
 
     control = Path(args.control)
     protected = Path(args.protected)
@@ -233,6 +366,9 @@ def main():
         "control_bytes": control.stat().st_size,
         "protected_bytes": protected.stat().st_size,
         "needles": needles,
+        "needles_given": needles_given,
+        "derived_needles": derived,
+        "needle_derivation_source": NEEDLE_DERIVATION_SOURCE,
         "tools": {},
         "control": {},
         "protected": {},
@@ -246,48 +382,38 @@ def main():
         report["control"][name] = control_counts
         report["protected"][name] = protected_counts
 
-    # --- 1. Extract classes.dex from both APKs (zipfile, not raw strings) ---
+    # --- 1. Extract ALL classes*.dex from both APKs (zipfile, not
+    # raw strings) — a needle in classes2.dex must count too. ---
     dex = {}
     for label, apk in (("control", control), ("protected", protected)):
         try:
-            with zipfile.ZipFile(apk) as z:
-                names = z.namelist()
-                dex_name = "classes.dex" if "classes.dex" in names else None
-                if dex_name is None:
-                    dex_name = next((n for n in names if n.startswith("classes") and n.endswith(".dex")), None)
-                if dex_name is None:
-                    raise FileNotFoundError("no classes*.dex in APK")
-                out = work / f"{label}-classes.dex"
-                out.write_bytes(z.read(dex_name))
-                dex[label] = out
-                print(f"{label} dex: {dex_name} ({out.stat().st_size} bytes)")
+            dex[label] = extract_all_dex(apk, work, label)
+            print(f"{label} dex: {len(dex[label])} file(s) "
+                  f"({sum(p.stat().st_size for p in dex[label])} bytes)")
         except Exception as e:  # noqa: BLE001 - report as tool error
             record_tool("strings_dex", {}, {}, error=f"dex extract failed ({label}): {e}")
             report["errors"].append(f"strings_dex dex extract failed ({label}): {e}")
 
-    # --- 2. strings on extracted classes.dex ---
+    # --- 2. strings on the extracted dex files (one run per file) ---
     if "control" in dex and "protected" in dex:
-        c_counts, p_counts, err = {}, {}, None
-        for needle in needles:
-            try:
-                c_out = subprocess.run(["strings", str(dex["control"])],
-                                       capture_output=True, text=True, timeout=120)
-                p_out = subprocess.run(["strings", str(dex["protected"])],
-                                       capture_output=True, text=True, timeout=120)
-                c_counts[needle] = count_literal_lines(c_out.stdout, needle)
-                p_counts[needle] = count_literal_lines(p_out.stdout, needle)
-            except Exception as e:  # noqa: BLE001
-                err = str(e)
-                break
-        record_tool("strings_dex", c_counts, p_counts, error=err)
-        if err:
-            report["errors"].append(f"strings_dex: {err}")
+        try:
+            c_counts = strings_counts(dex["control"], needles)
+            p_counts = strings_counts(dex["protected"], needles)
+            record_tool("strings_dex", c_counts, p_counts)
+        except Exception as e:  # noqa: BLE001 - report, never traceback
+            record_tool("strings_dex", {}, {}, error=f"strings failed: {e}")
+            report["errors"].append(f"strings_dex: {e}")
 
     # --- 3. jadx (non-zero exit tolerated if sources exist) ---
     jadx_dirs = {}
     for label, apk in (("control", control), ("protected", protected)):
         outdir = work / f"jadx-{label}"
-        r = run(["jadx", "-q", "-d", str(outdir), str(apk)], env)
+        try:
+            r = run(["jadx", "-q", "-d", str(outdir), str(apk)], env)
+        except subprocess.TimeoutExpired:
+            print(f"jadx {label}: TIMEOUT after 600s (tool failure, not a 0)")
+            jadx_dirs[label] = None
+            continue
         src = outdir / "sources"
         produced = src.is_dir() and any(src.rglob("*.java"))
         print(f"jadx {label}: exit={r.returncode} sources_produced={produced}")
@@ -296,8 +422,9 @@ def main():
         jadx_dirs[label] = src if produced else None
     if jadx_dirs["control"] is not None and jadx_dirs["protected"] is not None:
         # Quote-aware: only string literals count (see docstring).
-        c_counts = {n: count_quoted_in_tree(jadx_dirs["control"], n)[0] for n in needles}
-        p_counts = {n: count_quoted_in_tree(jadx_dirs["protected"], n)[0] for n in needles}
+        # Single pass per tree — see count_all_in_tree.
+        c_counts, _ = count_all_in_tree(jadx_dirs["control"], needles, quoted=True)
+        p_counts, _ = count_all_in_tree(jadx_dirs["protected"], needles, quoted=True)
         record_tool("jadx", c_counts, p_counts)
     else:
         missing_side = [l for l in ("control", "protected") if jadx_dirs[l] is None]
@@ -310,7 +437,12 @@ def main():
     apktool_dirs = {}
     for label, apk in (("control", control), ("protected", protected)):
         outdir = work / f"apktool-{label}"
-        r = run(["apktool", "d", "-q", "-o", str(outdir), str(apk)], env)
+        try:
+            r = run(["apktool", "d", "-q", "-o", str(outdir), str(apk)], env)
+        except subprocess.TimeoutExpired:
+            print(f"apktool {label}: TIMEOUT after 600s (tool failure, not a 0)")
+            apktool_dirs[label] = None
+            continue
         produced = outdir.is_dir() and any(outdir.rglob("*"))
         print(f"apktool {label}: exit={r.returncode} output_produced={produced}")
         if r.returncode != 0 and (r.stdout or r.stderr):
@@ -318,8 +450,8 @@ def main():
             print(f"  apktool {label} output tail: {tail}")
         apktool_dirs[label] = outdir if produced else None
     if apktool_dirs["control"] is not None and apktool_dirs["protected"] is not None:
-        c_counts = {n: count_literal_in_tree(apktool_dirs["control"], n)[0] for n in needles}
-        p_counts = {n: count_literal_in_tree(apktool_dirs["protected"], n)[0] for n in needles}
+        c_counts, _ = count_all_in_tree(apktool_dirs["control"], needles, quoted=False)
+        p_counts, _ = count_all_in_tree(apktool_dirs["protected"], needles, quoted=False)
         record_tool("apktool", c_counts, p_counts)
     else:
         missing_side = [l for l in ("control", "protected") if apktool_dirs[l] is None]
@@ -327,23 +459,27 @@ def main():
         record_tool("apktool", {}, {}, error=err)
         report["errors"].append(err)
 
-    # --- Verdict (v1.0 rule): every tool ran; protected == 0 for
-    # every needle in every tool; every needle has control > 0 in at
-    # least one tool; every tool sees control > 0 for at least one
-    # needle. Per-tool vacuity for a single needle is recorded, not
-    # a failure (see docstring).
+    # --- Verdict (v1.0 rule, derivation-aware): every tool ran;
+    # protected == 0 for every needle (given AND derived); every
+    # GIVEN needle has control > 0 in at least one tool; every tool
+    # sees control > 0 for at least one GIVEN needle. A DERIVED
+    # needle with control == 0 is recorded in derived_vacuous, not
+    # a failure — most derived spellings never occur in the control
+    # (see the module note). Per-tool vacuity for a single needle is
+    # recorded, not a failure (see docstring).
     reasons = []
     vacuous = {}
+    derived_vacuous = []
     if report["errors"]:
         reasons.append("tool error(s): " + "; ".join(report["errors"]))
     tools = ("strings_dex", "jadx", "apktool")
     for tool in tools:
         c_counts = report["control"].get(tool) or {}
         p_counts = report["protected"].get(tool) or {}
-        if c_counts and not any(v > 0 for v in c_counts.values()):
+        if c_counts and not any(c_counts.get(n, 0) > 0 for n in needles_given):
             reasons.append(
-                f"{tool}: control=0 for every needle (tool saw nothing — "
-                "broken run, not a clean result)")
+                f"{tool}: control=0 for every GIVEN needle (tool saw "
+                "nothing — broken run, not a clean result)")
         for needle in needles:
             if needle not in c_counts or needle not in p_counts:
                 reasons.append(f"{tool} [{needle}]: missing count (tool did not run)")
@@ -351,12 +487,16 @@ def main():
             if p_counts[needle] != 0:
                 reasons.append(
                     f"{tool} [{needle}]: protected={p_counts[needle]} (must be 0)")
-    for needle in needles:
+    for needle in needles_given:
         if not any((report["control"].get(t) or {}).get(needle, 0) > 0
                    for t in tools):
             reasons.append(
                 f"[{needle}]: control=0 in every tool (vacuous test — "
                 "needle not found in control, cannot PASS)")
+    for needle in derived:
+        if not any((report["control"].get(t) or {}).get(needle, 0) > 0
+                   for t in tools):
+            derived_vacuous.append(needle)
     for tool in tools:
         for needle in needles:
             c = (report["control"].get(tool) or {}).get(needle)
@@ -364,30 +504,40 @@ def main():
             if c == 0 and p == 0:
                 vacuous.setdefault(tool, []).append(needle)
     report["vacuous_in_tool"] = vacuous
+    report["derived_vacuous"] = derived_vacuous
 
     if reasons:
         report["verdict"] = "FAIL"
         report["reason"] = "; ".join(reasons)
     else:
         report["verdict"] = "PASS"
-        report["reason"] = ("protected is 0 for every needle in every tool; "
-                            "every needle found in control (>0) in at least "
-                            "one tool; every tool saw at least one needle. "
-                            + ("Per-tool vacuous needles (needle invisible "
+        report["reason"] = ("protected is 0 for every needle (given + "
+                            "derived) in every tool; every GIVEN needle "
+                            "found in control (>0) in at least one tool; "
+                            "every tool saw at least one GIVEN needle. "
+                            + (f"{len(derived_vacuous)} derived needle(s) "
+                               "vacuous in control (checked protected==0 "
+                               "only, not a failure): "
+                               + json.dumps(derived_vacuous)
+                               if derived_vacuous else
+                               "No derived needles were vacuous.")
+                            + (" Per-tool vacuous needles (needle invisible "
                                "to that tool by construction, not a failure): "
                                + json.dumps(vacuous) if vacuous else
-                               "No per-tool vacuous needles."))
+                               " No per-tool vacuous needles."))
 
     print()
     for tool in ("strings_dex", "jadx", "apktool"):
         for needle in needles:
             c = (report["control"].get(tool) or {}).get(needle, "?")
             p = (report["protected"].get(tool) or {}).get(needle, "?")
-            print(f"  {tool} [{needle}]: control={c} protected={p}")
+            tag = " [derived]" if needle in set(derived) else ""
+            print(f"  {tool} [{needle}]{tag}: control={c} protected={p}")
     print(f"VERDICT: {report['verdict']}")
     print(f"REASON: {report['reason']}")
 
     out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, indent=2))
     print(f"report written: {out_path}")
     print(json.dumps(report, indent=2))

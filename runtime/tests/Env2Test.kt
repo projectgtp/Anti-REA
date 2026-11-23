@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * JVM test for the batch-2 environment checks (L38–L45, ReaEnv2.kt).
@@ -7,11 +7,13 @@ package com.antirea.runtime
  * parameters, so no Android API is ever called. Compile with
  * android.jar on the kotlinc classpath (ReaEnv.kt imports android.*
  * for its adapter functions, which this test never calls; ReaEnv2.kt
- * itself is stdlib-only), then run on a plain JVM:
+ * itself is stdlib-only), then run on a plain JVM. ReaTrace.kt is
+ * required too: ReaEnv.kt calls it for the L102 memory-editor
+ * findings.
  *   kotlinc -cp $ANDROID_JAR -d env2-test.jar \
- *     ReaEnv.kt ReaEnv2.kt tests/Env2Test.kt
+ *     ReaEnv.kt ReaTrace.kt ReaEnv2.kt tests/Env2Test.kt
  *   java -cp env2-test.jar:$ANDROID_JAR:$STDLIB \
- *     com.antirea.runtime.Env2TestKt
+ *     com.appcore.runtime.Env2TestKt
  *
  * Checks:
  *  (a) L38 VPN/proxy: clean, VPN only, proxy only, both, blank proxy.
@@ -22,8 +24,11 @@ package com.antirea.runtime
  *  (e) L42 USB debugging on/off.
  *  (f) L43 app cloner: clean path, each marker, installer marker,
  *      case-insensitive, empty inputs, and the DOCUMENTED false
- *      positives ("individual" contains "dual"; a folder named
- *      "clone" flags).
+ *      positive (a folder literally named "clone" flags). The
+ *      "individual" false positive is FIXED by token matching
+ *      (runtime audit 2026-11-23): "dual" inside "individual" no
+ *      longer fires, while real cloner names ("dualspace",
+ *      "cloner", "ParallelSpace") still do.
  *  (g) L44 time tamper: clean advance, small NTP step (not flagged),
  *      backwards jump, forward jump, frozen wall clock, first run
  *      (no prior sample), reboot (elapsed reset), tolerance boundary.
@@ -91,9 +96,26 @@ fun main() {
     // Case-insensitive.
     check("app-cloner", ReaEnv2.appClonerDetected("/data/user/0/ParallelSpace", null), true)
     // DOCUMENTED false positives (pinned, not bugs in this test):
-    // "dual" is a substring of "individual"; a folder named "clone" flags.
-    check("app-cloner", ReaEnv2.appClonerDetected("/data/user/0/com.example.individualapp", null), true)
+    // a path segment literally named "clone" still flags — a name
+    // alone cannot tell an innocent folder called "clone" from a
+    // cloner path.
     check("app-cloner", ReaEnv2.appClonerDetected("/storage/emulated/0/clone/com.example.app", null), true)
+    // FIXED by token matching (runtime audit 2026-11-23): "dual"
+    // inside "individual" no longer fires; "clone" inside
+    // "myclone" no longer fires.
+    check("app-cloner", ReaEnv2.appClonerDetected("/data/user/0/com.example.individualapp", null), false)
+    check("app-cloner", ReaEnv2.appClonerDetected("/data/user/0/com.example.myclone", null), false)
+    check("app-cloner", ReaEnv2.appClonerDetected("/data/user/0/com.example.individual", null), false)
+    // Real cloner names still fire: token-prefix match keeps
+    // "dualspace" (Dual Space), "cloner", "ParallelSpace".
+    check("app-cloner", ReaEnv2.appClonerDetected("/data/user/0/com.dualspace.multispace", null), true)
+    check("app-cloner", ReaEnv2.appClonerDetected("/data/user/0/com.example.app", "com.dualspace.installer"), true)
+    if (!ReaEnv2.containsCloneMarkerToken("/data/user/0/com.example.parallel.app", "parallel")) {
+        fail("containsCloneMarkerToken missed 'parallel'")
+    }
+    if (ReaEnv2.containsCloneMarkerToken("/data/user/0/com.example.individualapp", "dual")) {
+        fail("containsCloneMarkerToken fired on 'individual'")
+    }
     // Evidence must name the marker, never echo the full path.
     val ev = ReaEnv2.appClonerDetected("/data/user/0/com.example.parallel.app", null).evidence
     if (!ev.contains("parallel") || ev.contains("/data/user/0")) {

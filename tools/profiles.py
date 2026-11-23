@@ -9,11 +9,13 @@ IMPLEMENTED):
   standard  strict minus the on-device modder-app blocks
             (L101/L102/L103) — for apps that do not want device
             behaviour checks. 40 layers in v1.0.
-  light     static hiding + integrity core only (18 layers):
+  light     static hiding + integrity core only (16 layers):
             L01,L02,L03,L07,L09,L14 (hiding/sweep),
-            L16,L17,L18,L19,L20,L21,L22 (integrity),
+            L18,L19,L20,L21,L22 (integrity),
             L46,L47,L48 (runtime crypto), L86,L87 (verification).
             No env checks, no traps, no device checks.
+            (L16/L17 were removed from light by the 2026-11-23
+            audit: both are PARTIAL, not IMPLEMENTED.)
 
 Custom profiles live in the app config under `profiles:`:
 
@@ -57,7 +59,7 @@ from config import load_config, ConfigError  # noqa: E402
 
 LIGHT_LAYERS = [
     "L01", "L02", "L03", "L07", "L09", "L14",
-    "L16", "L17", "L18", "L19", "L20", "L21", "L22",
+    "L18", "L19", "L20", "L21", "L22",
     "L46", "L47", "L48", "L86", "L87",
 ]
 # On-device behaviour blocks excluded from `standard`.

@@ -74,7 +74,7 @@ try {
 Java.perform(function () {
     // ---- F1: ask the app's own environment checks what they see ----
     try {
-        var ReaEnv = Java.use('com.antirea.runtime.ReaEnv');
+        var ReaEnv = Java.use('com.appcore.runtime.ReaEnv');
         var env = ReaEnv.INSTANCE; // Kotlin object: methods live on INSTANCE
         var findings = env.checkAll();
         var clean = true;
@@ -143,7 +143,7 @@ Java.perform(function () {
     }
 
     try {
-        var ReaRuntime = Java.use('com.antirea.runtime.ReaRuntime');
+        var ReaRuntime = Java.use('com.appcore.runtime.ReaRuntime');
         var inst = null;
         try { inst = ReaRuntime.INSTANCE.value; } catch (e) { inst = null; }
         // Kotlin object methods are usually reached through the

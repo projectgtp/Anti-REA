@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * L101 blocklist data — GENERATED, do not edit by hand.

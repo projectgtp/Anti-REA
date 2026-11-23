@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.security.MessageDigest
 
@@ -11,7 +11,7 @@ import java.security.MessageDigest
  *   kotlinc -cp $ANDROID_JAR -d ggfix-test.jar \
  *     ReaRuntime.kt ReaIntegrity.kt ReaTrace.kt ReaEnv.kt \
  *     ReaMemory.kt ReaRepack.kt GameGuardianFixTest.kt
- *   java -cp ggfix-test.jar:$STDLIB com.antirea.runtime.GameGuardianFixTestKt
+ *   java -cp ggfix-test.jar:$STDLIB com.appcore.runtime.GameGuardianFixTestKt
  *
  * Checks:
  *  (a) TracerPid parsing (0, 1234, missing, malformed).

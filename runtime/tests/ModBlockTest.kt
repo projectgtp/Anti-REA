@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * JVM test Main for ReaModBlock L101 (pure core only — no Context).
@@ -8,11 +8,16 @@ package com.antirea.runtime
  * calls), then run on a plain JVM:
  *   kotlinc -cp $ANDROID_JAR -d modblock-test.jar \
  *     ReaRuntime.kt ReaModBlock.kt ModBlockData.kt ModBlockTest.kt
- *   java -cp modblock-test.jar:$STDLIB com.antirea.runtime.ModBlockTestKt
+ *   java -cp modblock-test.jar:$STDLIB com.appcore.runtime.ModBlockTestKt
  *
  * Checks:
- *   1. blockedPackages() decrypts all 13 entries, including
- *      bin.mt.plus, ru.maximoff.apktool, com.chelpus.lackypatch.
+ *   1. blockedPackages() decrypts all 13 entries to EXACTLY the
+ *      names in layers/MT-LIKE-BLOCKLIST.md (round-trip proof:
+ *      every blob decrypts to its intended name, nothing else).
+ *      The plaintext names below live in this JVM-only test file
+ *      (never shipped in a protected APK) and in the blocklist
+ *      doc — grep for them over the runtime sources and
+ *      runtime/smali/ must still find nothing.
  *   2. findBlocked() flags listed packages in a fake installed set
  *      and does NOT flag benign apps (Chrome, Gmail).
  *   3. Empty set -> empty. Case differs -> not flagged (exact match).
@@ -26,13 +31,31 @@ fun main() {
         kotlin.system.exitProcess(1)
     }
 
-    // 1. All 13 blobs decrypt.
+    // 1. All 13 blobs decrypt to exactly the intended names.
+    val expected = listOf(
+        "bin.mt.plus",
+        "bin.mt.plus.canary",
+        "bin.mt.plus-org",
+        "ru.maximoff.apktool",
+        "ru.maximoff.apktool.unapkm",
+        "com.gmail.heagoo.apkeditor",
+        "com.gmail.heagoo.apkeditor.pro",
+        "com.wn.app.np",
+        "com.metube.arshi",
+        "io.github.abdurazaaqmohammed.MPManager",
+        "com.apkmanager",
+        "com.chelpus.lackypatch",
+        "ru.aaaaaaci.installer"
+    )
     val blocked = ReaModBlock.blockedPackages()
     if (blocked.size != 13) fail("blockedPackages() size=${blocked.size}, want 13")
+    if (blocked.sorted() != expected.sorted()) {
+        fail("blockedPackages() mismatch: got ${blocked.sorted()}, want ${expected.sorted()}")
+    }
     for (want in listOf("bin.mt.plus", "ru.maximoff.apktool", "com.chelpus.lackypatch")) {
         if (want !in blocked) fail("blockedPackages() missing $want")
     }
-    println("DECRYPT-OK: 13 entries, incl. bin.mt.plus / ru.maximoff.apktool / com.chelpus.lackypatch")
+    println("DECRYPT-OK: 13 entries, all match MT-LIKE-BLOCKLIST.md exactly")
 
     // 2. Listed packages flagged, benign apps not flagged.
     val found = ReaModBlock.findBlocked(

@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import android.app.ActivityManager
 import android.content.Context

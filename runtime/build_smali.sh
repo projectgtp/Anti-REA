@@ -4,7 +4,7 @@
 # Usage:  bash build_smali.sh
 #   (run heavy compiles through the big-tmp wrapper, never /tmp:
 #    bash /home/hatch/tmp/_config/run-with-big-tmp.sh \
-#      --job-name antirea-v10-runtime --kind general -- bash build_smali.sh)
+#      --job-name appcore-v10-runtime --kind general -- bash build_smali.sh)
 #
 # Toolchain (fixed paths, no new dependencies):
 #   kotlinc  ~/workspace/tools/kotlin-2.0.21/bin/kotlinc
@@ -16,7 +16,7 @@
 # Outputs (all under this script's directory, ~/workspace/anti-rea/v1.0/runtime/):
 #   build/runtime.jar   compiled runtime classes (jar)
 #   build/classes.dex   d8 output (intermediate, kept for inspection)
-#   smali/              baksmali output, package path com/antirea/runtime/
+#   smali/              baksmali output, package path com/appcore/runtime/
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

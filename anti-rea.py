@@ -44,6 +44,75 @@ import source as source_mod  # noqa: E402
 import native as native_mod  # noqa: E402
 import traps as traps_mod  # noqa: E402
 
+# --- Needle auto-derivation (Agent A contract) -------------------------
+# transformer/config.py ships derive_needles(strings) -> list[str] and
+# all_needles(cfg) -> list[str]: from every listed protect string it
+# derives the forms an attacker can also read — above all the BARE
+# HOST of a URL needle (the Bridge slip: the full URL was encrypted
+# but a static field holding just "mbbridge.onrender.com" leaked).
+# Agent A shipped those functions (scheme/www/port/trailing-slash/
+# encoded variants per URL; non-URLs pass through unchanged), and
+# transformer/smali.py also derives internally. protect/verify MUST
+# still use all_needles(cfg), never the raw listed strings, or
+# verify would check a smaller set than protect hides and miss the
+# slip. The local fallback below is only a safety net in case
+# config.py ever loses the functions; it implements the same
+# contract (same names, same minimal semantics: string itself,
+# trailing-slash strip, bare host / host:port for every
+# scheme://authority occurrence). verifier/attack.py carries the
+# same fallback for its standalone runs; verifier/tests/test_needle_
+# derivation.py asserts the two resolutions agree on a corpus.
+# Deliberately NOT derived anywhere: parent domains
+# ("onrender.com" from "mbbridge.onrender.com" is too broad) and
+# bare-domain tokens inside prose (false positives).
+_SCHEME_HOST_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://([^/?#\s\"']+)")
+
+
+def _derive_needles_fallback(strings):
+    out, seen = [], set()
+
+    def add(v):
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+
+    for s in strings or []:
+        if not s:
+            continue
+        add(s)
+        add(s.rstrip("/"))
+        for m in _SCHEME_HOST_RE.finditer(s):
+            netloc = m.group(1)
+            hostport = netloc.rsplit("@", 1)[-1]
+            if not hostport:
+                continue
+            add(hostport)
+            if hostport.startswith("["):
+                host = hostport.split("]", 1)[0] + "]"
+            else:
+                host = hostport.split(":")[0]
+            # Bare host only — never the www-stripped form: the
+            # fallback must stay a subset of config.derive_needles()
+            # (which adds www. but never strips it), so a test
+            # asserting fallback ⊆ resolved holds.
+            add(host)
+    return out
+
+
+def _all_needles_fallback(cfg):
+    return _derive_needles_fallback(protect_lists(cfg)["strings"])
+
+
+try:
+    from config import derive_needles as _cfg_derive_needles, all_needles as _cfg_all_needles  # noqa: E402
+    derive_needles, all_needles = _cfg_derive_needles, _cfg_all_needles
+    NEEDLE_DERIVATION_SOURCE = "transformer/config.py"
+except ImportError:
+    derive_needles, all_needles = _derive_needles_fallback, _all_needles_fallback
+    NEEDLE_DERIVATION_SOURCE = ("anti-rea.py fallback "
+                                "(transformer/config.py has no "
+                                "derive_needles/all_needles yet)")
+
 VERSION = "1.0.0"
 ROOT = Path(__file__).resolve().parent
 TOOLS_BIN = Path.home() / "workspace" / "tools" / "bin"
@@ -73,6 +142,8 @@ SELF_CHECK_FILES = [
     "transformer/junk.py",
     "transformer/tests/test_junk.py",
     "transformer/tests/test_smali_registers.py",
+    "transformer/tests/test_needle_derivation.py",
+    "transformer/tests/test_traps.py",
     "runtime/ReaRuntime.kt",
     "runtime/ReaEnv.kt",
     "runtime/ReaIntegrity.kt",
@@ -92,6 +163,7 @@ SELF_CHECK_FILES = [
     "runtime/ReaMethodDecrypt.kt",
     "runtime/ReaMethodLoader.kt",
     "runtime/tests/MethodDecryptTest.kt",
+    "runtime/tests/CrashHuntTest.kt",
     "runtime/build_smali.sh",
     "layers/REGISTRY.md",
     "layers/MT-LIKE-BLOCKLIST.md",
@@ -100,12 +172,17 @@ SELF_CHECK_FILES = [
     "docs/L60-SELF-CHANGING-CODE.md",
     "verifier/attack.py",
     "verifier/tamper.py",
+    "verifier/shipped_names.py",
     "verifier/frida_smoke.py",
     "verifier/sigcheck.py",
     "verifier/ghidra_smoke.py",
     "verifier/frida_test/frida_test.py",
     "verifier/frida_test/frida_script.js",
     "verifier/tests/test_frida_harness.py",
+    "verifier/tests/test_needle_derivation.py",
+    "verifier/tests/test_cli_errors.py",
+    "verifier/tests/test_attack_tamper.py",
+    "verifier/tests/test_shipped_names.py",
     "tools/make_manifest.py",
     "tools/gen_modblock_blobs.py",
     "tools/make_sig_blob.py",
@@ -127,6 +204,7 @@ SELF_CHECK_FILES = [
     "gradle-plugin/tests/test_antirea_command.py",
     "server/reference.py",
     "service/api.py",
+    "service/test_api.py",
 ]
 
 
@@ -227,6 +305,251 @@ def implemented_ids():
     return sorted(l["id"] for l in parse_registry() if l["status"] == "IMPLEMENTED")
 
 
+def partial_ids():
+    return sorted(l["id"] for l in parse_registry() if l["status"] == "PARTIAL")
+
+
+# Layers whose code lives in the injected runtime smali (runtime/*.kt
+# compiled to runtime/smali/). They are injected into the APK by
+# protect; at runtime the provider auto-invokes the env/mod-block
+# ones (L31-L37, L101, L102-via-ReaEnv, L16/L17-via-dex-check) and
+# the app itself invokes the rest at its sensitive entry points.
+# L60 is deliberately NOT here: runtime/smali/ contains no
+# ReaMethodDecrypt/Loader smali, so protect cannot inject it (see
+# the L60 registry note). L01 is listed because the smali transform
+# emits calls into ReaRuntime.
+RUNTIME_LAYER_IDS = frozenset([
+    "L01", "L06", "L09", "L13", "L16", "L17", "L18", "L20", "L21",
+    "L23", "L25", "L27", "L28", "L29", "L30", "L31", "L32", "L33",
+    "L34", "L35", "L36", "L37", "L38", "L39", "L40", "L41", "L42",
+    "L43", "L44", "L45", "L46", "L47", "L48", "L49", "L50", "L51",
+    "L54", "L56", "L57", "L101", "L102", "L103",
+])
+
+
+def _validate_config(cfg):
+    """Fail fast on wrong-typed config sections.
+
+    load_config() parses the YAML subset but never checks types, so
+    a section written as a scalar (e.g. ``protect: some-string``)
+    used to reach protect_lists()/enabled_layers() as ``str.get``
+    and die with an unhandled AttributeError traceback. Every
+    mistyped section or list field now raises ConfigError with the
+    section name and what was expected.
+    """
+    if not isinstance(cfg, dict):
+        raise ConfigError("config must be a mapping (got %r)" % type(cfg).__name__)
+    for name in ("app", "protect", "honeypots", "layers", "runtime",
+                 "experimental", "output", "profiles"):
+        if name in cfg and cfg[name] is not None \
+                and not isinstance(cfg[name], dict):
+            raise ConfigError(
+                "config section %r must be a mapping (got %r)"
+                % (name, cfg[name]))
+    p = cfg.get("protect") or {}
+    for field in ("strings", "patterns", "classes", "files"):
+        v = p.get(field)
+        # The YAML-subset parser turns a bare `strings:` (null
+        # intended) into {} — the project's own testapp.yaml relies
+        # on that for `layers.enable:` — so an EMPTY dict counts as
+        # unset here, exactly as enabled_layers()/protect_lists()
+        # already treat any falsy value. Only a non-empty dict (or
+        # any other non-list) is a real type error.
+        if v is not None and not isinstance(v, list) and v != {}:
+            raise ConfigError(
+                "protect.%s must be a list (got %r)" % (field, v))
+        if isinstance(v, list):
+            for item in v:
+                if not isinstance(item, str):
+                    raise ConfigError(
+                        "protect.%s items must be strings (got %r)"
+                        % (field, item))
+    h = cfg.get("honeypots") or {}
+    for field in ("secrets", "endpoints"):
+        v = h.get(field)
+        if v is not None and not isinstance(v, list) and v != {}:
+            raise ConfigError(
+                "honeypots.%s must be a list (got %r)" % (field, v))
+    lay = cfg.get("layers") or {}
+    for field in ("enable", "disable"):
+        v = lay.get(field)
+        if v is not None and not isinstance(v, list) and v != {}:
+            raise ConfigError(
+                "layers.%s must be a list (got %r)" % (field, v))
+    # A PARTIAL layer named in enable is not "PLANNED" — say so
+    # exactly. enabled_layers() (transformer/config.py) reports every
+    # non-implemented id as PLANNED, which misleads for L15/L60/L91/
+    # L98; catch the partial case here first.
+    partial = set(partial_ids())
+    wanted = set(lay.get("enable") or [])
+    hit = sorted(wanted & partial)
+    if hit:
+        raise ConfigError(
+            "layers %s are PARTIAL, not implemented, in v1.0 — remove "
+            "them from enable (see layers/REGISTRY.md for what is "
+            "missing for each)" % hit)
+
+
+def _is_protector_smali(rel_posix):
+    """True when a decoded-tree-relative smali path belongs to the
+    protector's own runtime/decoy classes (never to the app).
+
+    The protector tree is exactly com/appcore/runtime/ (the runtime)
+    and com/appcore/cache/ (decoy + maze classes). The OLD tree
+    com/antirea/runtime/ + com/antirea/decoy/ is matched too, so
+    the filters stay correct while Agent C's package rename is
+    still landing. The match is on the exact subpaths — NEVER a
+    bare "com/antirea/" or "com/appcore/" prefix, because an app
+    may legitimately live under com.antirea.* (the test app is
+    com.antirea.testapp) and must never be treated as runtime.
+    """
+    return any(p in rel_posix for p in (
+        "com/appcore/runtime/", "com/appcore/cache/",
+        "com/antirea/runtime/", "com/antirea/decoy/"))
+
+
+def _decoy_dest(assets_dir, name):
+    """Collision-safe destination for a planted decoy file.
+
+    Decoy files now live at the top level of assets/ with realistic
+    names (config.json, crash-report.txt, ...), so they can collide
+    with a real app asset of the same name. Never overwrite a real
+    file: try the plain name, then name-2, name-3, ... Returns the
+    chosen path (parent already exists).
+    """
+    cand = assets_dir / name
+    if not cand.exists():
+        return cand
+    stem, suffix = name.rsplit(".", 1) if "." in name else (name, "")
+    n = 2
+    while True:
+        cand = assets_dir / ("%s-%d.%s" % (stem, n, suffix)
+                             if suffix else "%s-%d" % (stem, n))
+        if not cand.exists():
+            return cand
+        n += 1
+
+
+def _rename_protector_paths(dec):
+    """Rename the protector's own smali tree after planting, before
+    rebuild (decoy-filename rename, user report 2026-11-23).
+
+    What it does, and only this:
+      * smali/com/antirea/runtime/ -> smali/com/appcore/runtime/
+        (the compiled runtime; Agent C is regenerating it under the
+        new package, in which case there is nothing to move and this
+        is a no-op).
+      * smali/com/antirea/decoy/ -> smali/com/appcore/cache/, with
+        DecoyNN.smali -> CacheNN.smali and the .class line renamed
+        the same way (MazeNN keeps its name: "maze" is not a banned
+        word, and nothing references these classes).
+      * In every .smali file, rewrite the two exact protector
+        references Lcom/antirea/runtime/ -> Lcom/appcore/runtime/
+        and Lcom/antirea/decoy/ -> Lcom/appcore/cache/ (the decrypt
+        calls the transform emitted, the ReaIndirect stub refs).
+    What it NEVER touches: the app's own smali. The rules match the
+    exact protector subpaths only, so an app package such as
+    com.antirea.testapp (test app) is byte-identical afterwards.
+    Returns (moved_files, rewritten_files).
+    """
+    moved, rewritten = 0, 0
+    old_root = dec / "smali" / "com" / "antirea"
+    new_root = dec / "smali" / "com" / "appcore"
+    for old_sub, new_sub in (("runtime", "runtime"), ("decoy", "cache")):
+        src = old_root / old_sub
+        if not src.is_dir():
+            continue
+        dst = new_root / new_sub
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if dst.is_dir():
+            for f in src.rglob("*"):
+                if f.is_file():
+                    rel = f.relative_to(src)
+                    target = dst / rel
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(f, target)
+                    moved += 1
+            shutil.rmtree(src)
+        else:
+            shutil.move(str(src), str(dst))
+            moved += sum(1 for _ in dst.rglob("*") if _.is_file())
+    if old_root.is_dir() and not any(old_root.rglob("*")):
+        shutil.rmtree(old_root, ignore_errors=True)
+    # Rename DecoyNN files / .class lines to CacheNN (only inside
+    # the moved cache tree).
+    cache = new_root / "cache"
+    if cache.is_dir():
+        for f in sorted(cache.glob("Decoy*.smali")):
+            f.rename(cache / ("Cache" + f.name[len("Decoy"):]))
+    rules = (("Lcom/antirea/runtime/", "Lcom/appcore/runtime/"),
+             ("Lcom/antirea/decoy/", "Lcom/appcore/cache/"),
+             ("Lcom/appcore/cache/Decoy", "Lcom/appcore/cache/Cache"))
+    for sf in sorted(dec.rglob("*.smali")):
+        try:
+            text = sf.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        new = text
+        for old, rep in rules:
+            new = new.replace(old, rep)
+        if new != text:
+            sf.write_text(new, encoding="utf-8")
+            rewritten += 1
+    return moved, rewritten
+
+
+def inject_runtime_smali(dec):
+    """Copy the compiled runtime smali into the decoded APK tree.
+
+    Shared by the L01 path and the L01-off path: runtime layers are
+    useless if their classes are absent from the APK, so injection
+    runs whenever any runtime layer is enabled, not only when L01
+    is. Raises RuntimeError (never silently skips) when the smali
+    tree is missing — a protect that silently dropped the runtime
+    would ship an APK whose decrypt calls have no target.
+    """
+    runtime_smali = HERE / "runtime" / "smali"
+    if not runtime_smali.is_dir():
+        raise RuntimeError(
+            "runtime smali missing at %s — run runtime/build_smali.sh "
+            "first (runtime layers need the com/appcore classes in "
+            "the APK)" % runtime_smali)
+    smali_dirs = sorted(d for d in dec.iterdir()
+                        if d.is_dir() and d.name.startswith("smali"))
+    target = smali_dirs[0] if smali_dirs else dec / "smali"
+    for src in runtime_smali.rglob("*.smali"):
+        rel = src.relative_to(runtime_smali)
+        dst = target / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+    return target
+
+
+def strip_debug_lines(dec):
+    """L14 standalone pass: drop .line directives from app smali.
+
+    transform_smali_file() strips .line only as part of the L01
+    transform, so a config enabling L14 without L01 used to strip
+    nothing. This pass covers exactly that case (L01 on: the
+    transform already did it, do not run twice). Returns the count
+    of directives removed.
+    """
+    removed = 0
+    for sf in sorted(dec.rglob("*.smali")):
+        if _is_protector_smali(
+                str(sf.relative_to(dec)).replace(os.sep, "/")):
+            continue
+        try:
+            lines = sf.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        kept = [ln for ln in lines if not smali_mod.LINE_RE.match(ln)]
+        if len(kept) != len(lines):
+            removed += len(lines) - len(kept)
+            sf.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    return removed
+
+
 def workdir(prefix):
     base = Path("/home/hatch/tmp")
     base.mkdir(parents=True, exist_ok=True)
@@ -251,9 +574,9 @@ def encrypt_res_values(dec, exact, patterns):
     value contains a configured needle (exact or pattern), encrypt
     the WHOLE value with encrypt_payload() (same XOR + split-key blob
     format as L01) and replace the XML text with the placeholder
-    "antirea-encrypted:N". Returns (payloads, encrypted_count) where
+    "meta-encrypted:N". Returns (payloads, encrypted_count) where
     payloads maps resource name -> crypto payload dict. The caller
-    writes assets/antirea/res_strings.json from payloads so the
+    writes assets/meta/res_strings.json from payloads so the
     runtime helper (runtime/ReaResStrings.kt) can decrypt on demand.
 
     Honest limit (unchanged): Android loads res/ itself, so
@@ -285,7 +608,7 @@ def encrypt_res_values(dec, exact, patterns):
                 n += 1
             payloads[key] = encrypt_payload(value)
             encrypted += 1
-            return '<string name="%s">antirea-encrypted:%s</string>' % (name, key)
+            return '<string name="%s">meta-encrypted:%s</string>' % (name, key)
 
         new = _RES_STRING_RE.sub(repl, text)
         if new != text:
@@ -306,6 +629,7 @@ def _resolve_profile(cfg, name, impl):
 # ---------------------------------------------------------------- protect
 def cmd_protect(args):
     cfg = load_config(args.config)
+    _validate_config(cfg)
     impl = implemented_ids()
     if getattr(args, "profile", None):
         layers = _resolve_profile(cfg, args.profile, impl)
@@ -314,12 +638,23 @@ def cmd_protect(args):
         layers = enabled_layers(cfg, impl)
     needles_cfg = protect_lists(cfg)
     honey = honeypots(cfg)
-    exact = list(needles_cfg["strings"])
+    # Derived needles, not just the listed ones: a URL needle also
+    # hides its bare host (L01 slip class), and verify checks the
+    # same derived set — see the derivation note at the top of
+    # this file. patterns are regexes and are never derived.
+    exact = list(all_needles(cfg))
+    print("[anti-rea] needles: %d listed, %d after derivation (%s)"
+          % (len(needles_cfg["strings"]), len(exact),
+             NEEDLE_DERIVATION_SOURCE))
     patterns = list(needles_cfg["patterns"])
     if args.source:
         return protect_source(args, cfg, layers, exact, patterns)
     if not args.apk:
         raise ConfigError("protect needs --apk or --source")
+    in_apk = Path(args.apk)
+    out_apk = Path(args.out)
+    if not in_apk.is_file():
+        raise ConfigError("input APK not found: %s" % in_apk)
     apktool = find_tool("apktool")
     zipalign = find_tool("zipalign")
     apksigner = find_tool("apksigner")
@@ -328,10 +663,6 @@ def cmd_protect(args):
                        ("apksigner", apksigner), ("keytool", keytool)):
         if not tool:
             raise RuntimeError("required tool not found: %s" % name)
-    in_apk = Path(args.apk)
-    out_apk = Path(args.out)
-    if not in_apk.is_file():
-        raise ConfigError("input APK not found: %s" % in_apk)
     wd = workdir("antirea-v10-protect-")
     print("[anti-rea] workdir %s" % wd)
     dec = wd / "decoded"
@@ -369,18 +700,15 @@ def cmd_protect(args):
                     changed += 1
         # Static field initializers (Kotlin const val / Java static final)
         # are a separate leak: they hold the literal, not a const-string.
+        # Pass exact + patterns explicitly: without them the pass only
+        # derives from payload keys already collected, and a field
+        # value matching ONLY a pattern would be missed (see
+        # transform_static_fields() docstring).
         for sf in smali_files:
-            if smali_mod.transform_static_fields(sf, payloads, stats):
+            if smali_mod.transform_static_fields(sf, payloads, stats, exact, patterns):
                 changed += 1
         # inject runtime smali (L46/L47 runtime)
-        smali_dirs = sorted(d for d in dec.iterdir()
-                            if d.is_dir() and d.name.startswith("smali"))
-        target = smali_dirs[0] if smali_dirs else dec / "smali"
-        for src in runtime_smali.rglob("*.smali"):
-            rel = src.relative_to(runtime_smali)
-            dst = target / rel
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dst)
+        inject_runtime_smali(dec)
         print("[anti-rea] L01: %d smali files rewritten, %d strings encrypted, "
               "%d static fields encrypted, %d .line directives stripped"
               % (changed, stats.get("strings_encrypted", 0),
@@ -389,18 +717,34 @@ def cmd_protect(args):
         if stats.get("skipped_no_locals"):
             print("[anti-rea] WARNING skipped (no .locals): %d"
                   % len(stats["skipped_no_locals"]))
+    else:
+        # Runtime layers without L01: the runtime classes must still
+        # be in the APK or the provider / app-invoked checks have no
+        # code to call (previously the injection lived inside the
+        # L01 block, so disabling L01 silently dropped every runtime
+        # layer). L14 without L01 gets its standalone strip pass.
+        if set(layers) & RUNTIME_LAYER_IDS:
+            inject_runtime_smali(dec)
+            print("[anti-rea] runtime smali injected (L01 off, %d "
+                  "runtime layers enabled)"
+                  % len(set(layers) & RUNTIME_LAYER_IDS))
+        if "L14" in layers:
+            n = strip_debug_lines(dec)
+            print("[anti-rea] L14: %d .line directives stripped "
+                  "(standalone pass, L01 off)" % n)
     # --- smali hardening (L55/L58/L59/L11) ---
-    # Runs on the APP's smali only — never on com/antirea/** (runtime,
-    # decoys, indirection stubs). Order: chunk -> opaque -> indirect
-    # -> flatten LAST (flatten restructures the final instruction
-    # stream, and Batch A verified the opaque guard survives it).
+    # Runs on the APP's smali only — never on the protector's own
+    # classes (runtime, decoys, indirection stubs). Order: chunk ->
+    # opaque -> indirect -> flatten LAST (flatten restructures the
+    # final instruction stream, and Batch A verified the opaque
+    # guard survives it).
     hard_stats = {}
     trap_chain = []
     if any(l in layers for l in ("L55", "L58", "L59", "L11")):
         seed = secrets.randbits(32)
         app_smali = [sf for sf in smali_files
-                     if "com/antirea/" not in
-                     str(sf.relative_to(dec)).replace(os.sep, "/")]
+                     if not _is_protector_smali(
+                         str(sf.relative_to(dec)).replace(os.sep, "/"))]
         if "L55" in layers:
             excl = set()
             for v in payloads.values():
@@ -474,80 +818,113 @@ def cmd_protect(args):
             shutil.copyfile(gate, dst)
             print("[anti-rea] L49: native gate .so copied (arm64-v8a)")
     # --- traps (L76-L85) ---
-    # Smali decoys go under com/antirea/decoy/ (same as L03/L52);
-    # text/JSON/XML decoys go under assets/antirea/decoys/ — never
-    # loaded by real code. L81 is a header-only ELF placeholder, NOT
-    # a loadable lib, so it lives in assets/, never in lib/.
+    # Decoy filenames are REALISTIC (user report 2026-11-23: files
+    # literally named "fake-*" in a file manager advertise the
+    # protector). No shipped filename or path may contain fake,
+    # decoy, antirea, honeypot or trap — see verifier/shipped_names.py
+    # and its scan test. The tripwire-id marker stays INSIDE the file
+    # contents (that is what flags use); only names/paths changed.
+    # Smali decoys live under com/appcore/<area>/ with plausible
+    # class names (transformer/traps.py already declares them that
+    # way); text/JSON/XML decoys live at the top level of assets/
+    # with realistic names — never loaded by real code. The res
+    # decoy is res/values/update.xml. Decoy destinations are
+    # collision-safe: a real app file of the same name is never
+    # overwritten (see _decoy_dest). L81 is a header-only ELF
+    # placeholder, NOT a loadable lib, so it lives in assets/,
+    # never in lib/.
     trap_count = 0
+    trap_files = []
     if any(l in layers for l in
            ("L76", "L77", "L78", "L79", "L80", "L81", "L82", "L83",
             "L84", "L85")):
-        decoy_dir = dec / "smali" / "com" / "antirea" / "decoy"
-        decoy_dir.mkdir(parents=True, exist_ok=True)
         smali_traps = []
         if "L76" in layers:
             smali_traps.append(
-                ("FakeLogin.smali", traps_mod.fake_login_flow()))
+                ("auth", "LoginManager.smali", traps_mod.fake_login_flow()))
         if "L78" in layers:
-            smali_traps.append(("SlowMaze.smali", traps_mod.slow_maze()))
+            smali_traps.append(
+                ("sync", "RetryWorker.smali", traps_mod.slow_maze()))
         if "L84" in layers:
             smali_traps.append(
-                ("DecoyAdmin.smali", traps_mod.honeypot_admin_panel()))
-        for name, text in smali_traps:
-            (decoy_dir / name).write_text(text, encoding="utf-8")
+                ("admin", "AdminPanel.smali",
+                 traps_mod.honeypot_admin_panel()))
+        for subpkg, name, text in smali_traps:
+            d = dec / "smali" / "com" / "appcore" / subpkg
+            d.mkdir(parents=True, exist_ok=True)
+            (d / name).write_text(text, encoding="utf-8")
+            trap_files.append("smali/com/appcore/%s/%s" % (subpkg, name))
             trap_count += 1
-        tdir = dec / "assets" / "antirea" / "decoys"
-        tdir.mkdir(parents=True, exist_ok=True)
+        assets_dir = dec / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
         text_traps = []
         if "L77" in layers:
-            text_traps.append(("fake-crash.txt", traps_mod.fake_crash()))
+            text_traps.append(("crash-report.txt", traps_mod.fake_crash()))
         if "L82" in layers:
             text_traps.append(
-                ("fake-stacktrace.txt", traps_mod.fake_stack_traces()))
+                ("stacktrace.txt", traps_mod.fake_stack_traces()))
         if "L83" in layers:
             # fake_error_messages() returns a LIST of decoy strings
             # (see transformer/traps.py), not one string — join them
             # or write_text raises TypeError and the protect aborts.
             text_traps.append(
-                ("fake-errors.txt",
+                ("error-log.txt",
                  "\n".join(traps_mod.fake_error_messages()) + "\n"))
         if "L80" in layers:
             text_traps.append(
-                ("fake-config.json", traps_mod.fake_config_file()))
+                ("config.json", traps_mod.fake_config_file()))
         for name, text in text_traps:
-            (tdir / name).write_text(text, encoding="utf-8")
+            dest = _decoy_dest(assets_dir, name)
+            dest.write_text(text, encoding="utf-8")
+            trap_files.append("assets/%s" % dest.name)
             trap_count += 1
         if "L81" in layers:
-            (tdir / "libantirea-decoy.so").write_bytes(
-                traps_mod.fake_native_lib())
+            dest = _decoy_dest(assets_dir, "libconfig.so")
+            dest.write_bytes(traps_mod.fake_native_lib())
+            trap_files.append("assets/%s" % dest.name)
             trap_count += 1
         if "L79" in layers:
             rdir = dec / "res" / "values"
             rdir.mkdir(parents=True, exist_ok=True)
-            (rdir / "antirea-decoy.xml").write_text(
-                traps_mod.fake_update_prompt(), encoding="utf-8")
+            dest = _decoy_dest(rdir, "update.xml")
+            dest.write_text(traps_mod.fake_update_prompt(),
+                            encoding="utf-8")
+            trap_files.append("res/values/%s" % dest.name)
             trap_count += 1
         if "L85" in layers:
             trap_chain = traps_mod.chain_traps("L76")
-        print("[anti-rea] traps L76-L85: %d planted, chain=%s"
-              % (trap_count,
+        print("[anti-rea] traps L76-L85: %d planted (%s), chain=%s"
+              % (trap_count, trap_files,
                  [c["trap_id"] for c in trap_chain] if trap_chain else []))
     # --- decoys + maze + honeypots (L03/L04/L05/L52/L53/L71-L75) ---
+    # One shared decoy writer serves L03/L04/L05 (honeypot literals),
+    # L10 (decoy-class camouflage), L52 (decoy classes), L71/L72/L73
+    # (fake endpoints/secrets/keys) and L74 (decoy API methods):
+    # every one of them is the same planted com/appcore/cache/ class,
+    # so the gate must list all of them — L10/L52/L74 used to be
+    # missing here, so enabling only those layers planted nothing.
+    # The classes are written by transformer/smali.py under
+    # com/antirea/decoy/ and renamed to com/appcore/cache/ (DecoyNN
+    # -> CacheNN) by _rename_protector_paths() before rebuild.
     decoy_count = 0
-    if any(l in layers for l in ("L03", "L04", "L05", "L71", "L72", "L73")):
+    if any(l in layers for l in ("L03", "L04", "L05", "L10", "L52",
+                                 "L71", "L72", "L73", "L74")):
         fakes = list(honey["secrets"]) + list(honey["endpoints"])
         for i, fake in enumerate(fakes):
             smali_mod.write_decoy_smali(dec, i, fake, "getSecret%02d" % i)
             decoy_count += 1
         print("[anti-rea] decoys/honeypots written: %d" % decoy_count)
     maze_count = 0
-    if "L53" in layers:
+    # L75 (maze classes) is the same write_maze_smali() output as
+    # L53 (dead-code maze) — the gate must list both, or enabling
+    # only L75 plants nothing.
+    if "L53" in layers or "L75" in layers:
         for i in range(3):
             smali_mod.write_maze_smali(dec, i)
             maze_count += 1
     # --- resource + manifest sweep (L06, L09) ---
     # L06: sensitive res/values strings are ENCRYPTED (blob in
-    # assets/antirea/res_strings.json, placeholder in the XML) and
+    # assets/meta/res_strings.json, placeholder in the XML) and
     # decrypted on demand by runtime/ReaResStrings.kt — the app must
     # call decryptResource(name) explicitly; getString() returns the
     # placeholder (Android loads res/ itself, no transparent hook).
@@ -561,7 +938,7 @@ def cmd_protect(args):
     if "L06" in layers or "L09" in layers:
         res_payloads, res_encrypted = encrypt_res_values(dec, exact, patterns)
         if res_payloads:
-            assets = dec / "assets" / "antirea"
+            assets = dec / "assets" / "meta"
             assets.mkdir(parents=True, exist_ok=True)
             (assets / "res_strings.json").write_text(json.dumps(
                 {"version": 1,
@@ -569,9 +946,9 @@ def cmd_protect(args):
                              for n, p in sorted(res_payloads.items())]},
                 indent=2), encoding="utf-8")
         print("[anti-rea] L06: %d res/values strings encrypted to "
-              "assets/antirea/res_strings.json (decrypt on demand via "
+              "assets/meta/res_strings.json (decrypt on demand via "
               "ReaResStrings.decryptResource(name); getString() returns "
-              "the antirea-encrypted: placeholder)" % res_encrypted)
+              "the meta-encrypted: placeholder)" % res_encrypted)
     if "L06" in layers or "L09" in layers:
         for xf in list(dec.rglob("*.xml")):
             try:
@@ -581,7 +958,7 @@ def cmd_protect(args):
             new = t
             for needle in exact:
                 if needle in new:
-                    new = new.replace(needle, "antirea-hidden")
+                    new = new.replace(needle, "meta-hidden")
                     res_replaced += 1
             if new != t:
                 xf.write_text(new, encoding="utf-8")
@@ -600,6 +977,12 @@ def cmd_protect(args):
         # Only hashes of needles are recorded — never plaintext.
         "needles_found_sha256": sorted(
             sha256_hex(n.encode("utf-8")) for n in found),
+        # Derived needles (bare hosts etc.) that protect also hid;
+        # listed strings are in the config, derived ones are not,
+        # so record which forms derivation added (hashes only).
+        "needles_derived_sha256": sorted(
+            sha256_hex(n.encode("utf-8")) for n in
+            set(exact) - set(needles_cfg["strings"])),
         # Payloads are keyed by key_id ONLY — the plaintext needle must
         # never appear in the REA-IR file (only its sha256).
         "payloads": {"k%d" % (i + 1): {
@@ -622,15 +1005,16 @@ def cmd_protect(args):
         "hardening": hard_stats,
         "native_strings": so_report,
         "assets_encrypted": asset_enc,
-        "traps": {"count": trap_count, "chain": trap_chain},
+        "traps": {"count": trap_count, "chain": trap_chain,
+                  "files": trap_files},
         "res_replaced": res_replaced,
         "res_strings": {
             "count": res_encrypted,
             "names": sorted(res_payloads),
-            "file": ("assets/antirea/res_strings.json"
+            "file": ("assets/meta/res_strings.json"
                      if res_payloads else None),
             "note": "Encrypted res/values strings. Android getString() "
-                    "returns the antirea-encrypted:<name> placeholder; "
+                    "returns the meta-encrypted:<name> placeholder; "
                     "the app must call ReaResStrings.decryptResource(name) "
                     "explicitly (L06).",
         },
@@ -648,13 +1032,24 @@ def cmd_protect(args):
         rea_ir = _wm.apply_watermark(rea_ir)
         print("[anti-rea] L26: watermark build_id=%s"
               % rea_ir["watermark"]["build_id"])
-    assets = dec / "assets" / "antirea"
+    assets = dec / "assets" / "meta"
     assets.mkdir(parents=True, exist_ok=True)
     (assets / "manifest.json").write_text(
         json.dumps({"rea_ir": "manifest.json", "layers": layers,
                     "blob_sha256": [v["blob_sha256"]
                                     for v in payloads.values()]},
                    indent=2), encoding="utf-8")
+    # --- protector-path rename (decoy-filename fix) ---
+    # Runs LAST before rebuild, after every planting step: moves
+    # the protector's own smali tree from com/antirea/ to
+    # com/appcore/ (runtime + decoy/cache) and rewrites the exact
+    # protector references in smali text. See
+    # _rename_protector_paths() — the app's own smali is untouched.
+    moved, rewritten = _rename_protector_paths(dec)
+    if moved or rewritten:
+        print("[anti-rea] protector paths renamed: %d files moved to "
+              "com/appcore/, %d smali files rewritten"
+              % (moved, rewritten))
     # --- rebuild, inject build hash, align, sign ---
     unsigned = wd / "unsigned.apk"
     print("[anti-rea] apktool rebuild")
@@ -664,7 +1059,7 @@ def cmd_protect(args):
                   "rea_ir_sha256": hashlib.sha256(
                       json.dumps(rea_ir, sort_keys=True).encode()).hexdigest(),
                   "layers": layers}
-    inject_into_apk(unsigned, "assets/antirea/build.json",
+    inject_into_apk(unsigned, "assets/meta/build.json",
                     json.dumps(build_info, indent=2).encode())
     rea_ir["output_dex_sha256"] = dex_hash
     out_apk.parent.mkdir(parents=True, exist_ok=True)
@@ -674,12 +1069,12 @@ def cmd_protect(args):
     if not args.keystore:
         run([keytool, "-genkeypair", "-keystore", str(ks),
              "-storepass", "android", "-keypass", "android",
-             "-alias", "antirea-test", "-keyalg", "RSA", "-keysize", "2048",
+             "-alias", "appcore-test", "-keyalg", "RSA", "-keysize", "2048",
              "-validity", "365",
-             "-dname", "CN=Anti-REA Test, OU=Test, O=Test, C=BD", "-noprompt"])
+             "-dname", "CN=AppCore Test, OU=Test, O=Test, C=BD", "-noprompt"])
     run([apksigner, "sign", "--ks", str(ks), "--ks-pass", "pass:android",
          "--key-pass", "pass:android", "--ks-key-alias",
-         args.key_alias or "antirea-test",
+         args.key_alias or "appcore-test",
          "--out", str(out_apk), str(aligned)])
     run([apksigner, "verify", "--verbose", str(out_apk)])
     rea_ir["output_apk_sha256"] = sha256_file(out_apk)
@@ -690,7 +1085,7 @@ def cmd_protect(args):
     rea_path.write_text(json.dumps(rea_ir, indent=2, sort_keys=True),
                         encoding="utf-8")
     if r8_text is not None:
-        r8_path = rea_dir / "proguard-rules-antirea.pro"
+        r8_path = rea_dir / "proguard-rules-appcore.pro"
         r8_path.write_text(r8_text, encoding="utf-8")
         print("[anti-rea] L08: R8 rules written to %s (apply in the "
               "app's own Gradle build; the CLI cannot rename classes "
@@ -739,8 +1134,8 @@ def inject_provider(manifest_xml, app_package):
     text = manifest_xml.read_text(encoding="utf-8", errors="replace")
     if "ReaGuardProvider" in text:
         return
-    provider = ('\n        <provider android:name="com.antirea.runtime.ReaGuardProvider" '
-                'android:authorities="%s.antirea.guard" android:exported="false" '
+    provider = ('\n        <provider android:name="com.appcore.runtime.ReaGuardProvider" '
+                'android:authorities="%s.appcore.guard" android:exported="false" '
                 'android:enabled="true" />' % app_package)
     new, n = re.subn(r"(\s*</application>)", provider + r"\1", text, count=1)
     if n:
@@ -749,7 +1144,7 @@ def inject_provider(manifest_xml, app_package):
 
 
 def attestation_format():
-    return {"type": "antirea-attestation/v1",
+    return {"type": "attestation/v1",
             "fields": ["app_package", "build_id", "dex_sha256",
                        "env_findings", "integrity_passed", "timestamp_utc"],
             "note": "Client sends this to the app server; the server "
@@ -758,7 +1153,7 @@ def attestation_format():
 
 
 def tripwire_format():
-    return {"type": "antirea-tripwire/v1",
+    return {"type": "tripwire/v1",
             "fields": ["tripwire_id", "kind", "app_package", "device_hash",
                        "timestamp_utc"],
             "kinds": ["honeypot_secret_used", "honeypot_endpoint_used",
@@ -828,6 +1223,34 @@ def _report_sigcheck(apk):
         print("[anti-rea] L24 sigcheck unavailable: %s" % e)
 
 
+def _report_shipped_names(apk):
+    """Decoy-filename scan (user report 2026-11-23) — warning only.
+
+    Flags shipped filenames/paths containing fake/decoy/antirea/
+    honeypot/trap. Reporting only; never fails the verify and never
+    raises — the scan test (verifier/tests/test_shipped_names.py)
+    is the enforcing check. Wiring the scan into the verdict is a
+    follow-up for after the committed testapp APKs are re-protected
+    under the new naming (they still carry the old names).
+    """
+    try:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "antirea_shipped_names", HERE / "verifier" / "shipped_names.py")
+        _sn = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_sn)
+        bad = _sn.scan_apk(apk)
+        if bad:
+            print("[anti-rea] WARNING shipped names: %d self-identifying "
+                  "filename(s) (fake/decoy/antirea/honeypot/trap): %s"
+                  % (len(bad), bad[:10]))
+        else:
+            print("[anti-rea] shipped names: OK (no banned words in "
+                  "filenames)")
+    except Exception as e:
+        print("[anti-rea] shipped-names scan unavailable: %s" % e)
+
+
 # ---------------------------------------------------------------- verify
 def cmd_verify(args):
     apk = Path(args.apk)
@@ -836,7 +1259,12 @@ def cmd_verify(args):
     cfg = load_config(args.config) if args.config else None
     needles = []
     if cfg:
-        needles = list(protect_lists(cfg)["strings"])
+        _validate_config(cfg)
+        # Derived needles too — verify must check the bare host (and
+        # every other derived form), not just the listed strings,
+        # or a protect slip that leaves the bare host behind would
+        # pass verify unnoticed.
+        needles = list(all_needles(cfg))
         for pat in protect_lists(cfg)["patterns"]:
             needles.append("PATTERN:%s" % pat)
     attack = HERE / "verifier" / "attack.py"
@@ -847,6 +1275,7 @@ def cmd_verify(args):
                    n for n in needles if not n.startswith("PATTERN:"))]
         p = subprocess.run(cmd)
         _report_sigcheck(apk)
+        _report_shipped_names(apk)
         return p.returncode
     # Built-in fallback: decode + literal sweep (no control comparison).
     apktool = find_tool("apktool")
@@ -873,6 +1302,7 @@ def cmd_verify(args):
     print("[anti-rea] NOTE: no --control given, so this 0 is NOT proven "
           "non-vacuous — run with --control to prove the test works.")
     _report_sigcheck(apk)
+    _report_shipped_names(apk)
     return 0 if not hits else 1
 
 
@@ -897,7 +1327,8 @@ def cmd_ci(args):
     print("[anti-rea] CI step 1/2: protect")
     try:
         rc = cmd_protect(protect_args)
-    except (ConfigError, RuntimeError, FileNotFoundError) as e:
+    except (ConfigError, RuntimeError, FileNotFoundError, ValueError,
+            OSError) as e:
         print("[anti-rea] CI FAIL: protect error: %s" % e, file=sys.stderr)
         return 2
     if rc != 0:
@@ -909,7 +1340,8 @@ def cmd_ci(args):
                                   control=args.control or args.apk)
     try:
         rc = cmd_verify(verify_args)
-    except (ConfigError, RuntimeError, FileNotFoundError) as e:
+    except (ConfigError, RuntimeError, FileNotFoundError, ValueError,
+            OSError) as e:
         print("[anti-rea] CI FAIL: verify error: %s" % e, file=sys.stderr)
         return 2
     if rc != 0:
@@ -998,8 +1430,13 @@ def main(argv=None):
         return 2
     try:
         return args.fn(args)
-    except (ConfigError, RuntimeError, FileNotFoundError) as e:
+    except (ConfigError, RuntimeError, FileNotFoundError, ValueError,
+            OSError) as e:
         print("[anti-rea] ERROR: %s" % e, file=sys.stderr)
+        return 2
+    except Exception as e:  # backstop: bad input must never traceback
+        print("[anti-rea] ERROR: %s: %s"
+              % (type(e).__name__, e), file=sys.stderr)
         return 2
 
 

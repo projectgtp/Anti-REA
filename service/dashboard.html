@@ -12,16 +12,21 @@
 </head>
 <body>
 <h1>Anti-REA — protect an APK</h1>
-<div class="warn"><strong>Prototype — no authentication.</strong>
+<div class="warn"><strong>Prototype — localhost only by default.</strong>
 This page is served only on localhost by default. Never expose it
 publicly without real auth + TLS. Uploaded APKs are protected by the
-v1.0 CLI and signed with its ephemeral TEST keystore.</div>
+v1.0 CLI and signed with its ephemeral TEST keystore. If the server
+was started with ANTIREA_API_TOKEN set, paste the token below —
+/protect returns 401 without it.</div>
 
 <form id="f">
   <label for="apk">APK file (max 512 MB)</label>
   <input id="apk" name="apk" type="file" accept=".apk" required>
   <label for="config">Config (anti-rea.yaml, optional — example config used if omitted)</label>
   <input id="config" name="config" type="file" accept=".yaml,.yml">
+  <label for="token">API token (only if the server requires one)</label>
+  <input id="token" name="token" type="password" autocomplete="off"
+         placeholder="leave empty when no token is set">
   <p><button type="submit">Protect</button></p>
 </form>
 
@@ -45,8 +50,12 @@ document.getElementById('f').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   resultEl.textContent = 'Uploading and protecting… (this takes a minute or two)';
   const fd = new FormData(ev.target);
+  fd.delete('token');  // never upload the token as a form field
+  const headers = {};
+  const token = document.getElementById('token').value.trim();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
   try {
-    const r = await fetch('/protect', { method: 'POST', body: fd });
+    const r = await fetch('/protect', { method: 'POST', body: fd, headers });
     const j = await r.json();
     resultEl.textContent = JSON.stringify(j, null, 2);
     if (j.download_url) {

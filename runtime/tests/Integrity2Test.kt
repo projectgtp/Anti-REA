@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * JVM test Main for Batch B integrity layers (L23, L25, L27, L28, L29,
@@ -11,7 +11,7 @@ package com.antirea.runtime
  *   kotlinc -cp $ANDROID_JAR -d tests/integrity2-test.jar \
  *     ReaRuntime.kt ReaIntegrity.kt ReaIntegrity2.kt ReaTimer.kt tests/Integrity2Test.kt
  *   cd runtime && java -cp tests/integrity2-test.jar:$STDLIB:$ANDROID_JAR \
- *     com.antirea.runtime.Integrity2TestKt [path-to-dynamic-test.jar]
+ *     com.appcore.runtime.Integrity2TestKt [path-to-dynamic-test.jar]
  * (default jar path: tests/dynamic-test.jar, relative to the runtime dir.)
  *
  * Checks:
@@ -110,7 +110,7 @@ fun main(args: Array<String>) {
     // (d) L28 resource hashes.
     val resEntries = mapOf(
         "res/values/strings.xml" to "strings-content".toByteArray(Charsets.UTF_8),
-        "assets/antirea/manifest.json" to "{\"v\":1}".toByteArray(Charsets.UTF_8)
+        "assets/meta/manifest.json" to "{\"v\":1}".toByteArray(Charsets.UTF_8)
     )
     val resExpected = resEntries.mapValues { sha256(it.value) }
     val resOk = ReaIntegrity2.verifyResourceHashes(resEntries, resExpected)
@@ -124,7 +124,7 @@ fun main(args: Array<String>) {
     val resMissing = ReaIntegrity2.verifyResourceHashes(
         mapOf("res/values/strings.xml" to resEntries["res/values/strings.xml"]!!), resExpected
     )
-    if (resMissing.passed || resMissing.missingEntries != listOf("assets/antirea/manifest.json")) {
+    if (resMissing.passed || resMissing.missingEntries != listOf("assets/meta/manifest.json")) {
         fail("L28 missing resource not flagged: $resMissing")
     }
     if (ReaIntegrity2.verifyResourceHashes(resEntries, emptyMap()).passed) {
@@ -229,22 +229,22 @@ fun main(args: Array<String>) {
 
     // (i) L57 dynamic loading from a jar.
     val jarPath = if (args.isNotEmpty()) args[0] else "tests/dynamic-test.jar"
-    val dynClass = ReaIntegrity2.loadClassFromJar(jarPath, "com.antirea.runtime.DynamicHello")
+    val dynClass = ReaIntegrity2.loadClassFromJar(jarPath, "com.appcore.runtime.DynamicHello")
     if (dynClass == null) fail("L57 loadClassFromJar returned null for $jarPath")
     val dynInstance = dynClass.getDeclaredConstructor().newInstance()
     val dynHello = ReaIntegrity2.invokeReflectively(dynInstance, "hello")
     if (dynHello != "dynamic-hello") fail("L57 dynamic hello = $dynHello")
     val dynAdd = ReaIntegrity2.invokeReflectively(dynInstance, "add", 2, 3)
     if (dynAdd != 5) fail("L57 dynamic add(2,3) = $dynAdd")
-    if (ReaIntegrity2.loadClassFromJar(jarPath, "com.antirea.runtime.NoSuchClass") != null) {
+    if (ReaIntegrity2.loadClassFromJar(jarPath, "com.appcore.runtime.NoSuchClass") != null) {
         fail("L57 missing class returned non-null")
     }
-    if (ReaIntegrity2.loadClassFromJar("tests/no-such.jar", "com.antirea.runtime.DynamicHello") != null) {
+    if (ReaIntegrity2.loadClassFromJar("tests/no-such.jar", "com.appcore.runtime.DynamicHello") != null) {
         fail("L57 missing jar returned non-null")
     }
     val dynTmpDir = java.io.File("tests/dyn-tmp").apply { mkdirs() }
     val jarBytes = java.io.File(jarPath).readBytes()
-    val fromBytes = ReaIntegrity2.loadClassFromJarBytes(jarBytes, "com.antirea.runtime.DynamicHello", dynTmpDir)
+    val fromBytes = ReaIntegrity2.loadClassFromJarBytes(jarBytes, "com.appcore.runtime.DynamicHello", dynTmpDir)
     if (fromBytes == null) fail("L57 loadClassFromJarBytes returned null")
     dynTmpDir.listFiles()?.forEach { it.delete() }
     dynTmpDir.delete()

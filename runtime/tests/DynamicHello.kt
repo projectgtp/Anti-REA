@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * Fixture class for the L57 dynamic-loading test (Integrity2Test).

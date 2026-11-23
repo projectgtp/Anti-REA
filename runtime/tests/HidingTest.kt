@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.io.File
 import java.security.MessageDigest
@@ -14,7 +14,7 @@ import java.util.Base64
  * this tests real cross-language interop, not a Kotlin-only echo):
  *   kotlinc -d hiding-test.jar ReaRuntime.kt ReaAssets.kt ReaNative.kt \
  *       tests/HidingTest.kt
- *   java -cp hiding-test.jar com.antirea.runtime.HidingTestKt \
+ *   java -cp hiding-test.jar com.appcore.runtime.HidingTestKt \
  *       tests/hiding_vectors.txt
  *
  * Vectors file lines (base64 unless noted):

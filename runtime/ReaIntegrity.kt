@@ -1,6 +1,8 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 import java.security.MessageDigest
 
 /**
@@ -47,11 +49,35 @@ object ReaIntegrity {
         return verifyBytesSha256(dexBytes, expectedHex)
     }
 
-    /** Verify a file's bytes against an expected sha256 hex. False on any error. */
+    /**
+     * SHA-256 hex of a stream, read in 8 KB chunks. The stream is
+     * NOT closed here (the caller owns it — use `use {}`).
+     * Streaming matters: the old verifyFileSha256 read the whole
+     * file with readBytes(), so hashing a large APK (hundreds of
+     * MB) allocated the whole file in RAM and could throw
+     * OutOfMemoryError out of a check that promises never to crash
+     * the app. This reads a fixed 8 KB buffer instead.
+     */
+    fun hashStreamSha256(input: InputStream): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buf = ByteArray(8192)
+        var n: Int
+        while (input.read(buf).also { r -> n = r } != -1) {
+            digest.update(buf, 0, n)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * Verify a file's bytes against an expected sha256 hex. False
+     * on any error. Streams the file (see [hashStreamSha256]) — it
+     * never loads the whole file into memory.
+     */
     fun verifyFileSha256(file: File, expectedHex: String): Boolean {
         return try {
             if (!file.canRead()) return false
-            verifyBytesSha256(file.readBytes(), expectedHex)
+            val actual = FileInputStream(file).use { hashStreamSha256(it) }
+            actual == expectedHex.lowercase()
         } catch (e: Exception) {
             false
         }

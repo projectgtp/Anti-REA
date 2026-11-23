@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.util.Timer
 import java.util.TimerTask
@@ -35,7 +35,7 @@ class ReaTimer(
     private val clockMs: () -> Long = { System.currentTimeMillis() }
 ) {
     init {
-        require(intervalMs > 0) { "Anti-REA: ReaTimer intervalMs must be > 0" }
+        require(intervalMs > 0) { "AppCore: ReaTimer intervalMs must be > 0" }
     }
 
     /** How many times the check has fired (including failures). */
@@ -57,6 +57,15 @@ class ReaTimer(
     private var nextFireMs: Long? = null
     private var realTimer: Timer? = null
 
+    companion object {
+        /**
+         * Max check invocations in one tick() call (see [tick]).
+         * A clock jump must never turn one tick into thousands of
+         * back-to-back checks on the calling thread.
+         */
+        const val MAX_FIRES_PER_TICK: Int = 10
+    }
+
     /** Arm the timer: the first check fires after [intervalMs]. */
     fun arm() {
         nextFireMs = clockMs() + intervalMs
@@ -67,13 +76,22 @@ class ReaTimer(
      * interval (catching up if several intervals passed), and stops
      * on the first failure. Returns how many times the check fired
      * in this call. Safe to call when stopped or unarmed (0 fires).
+     *
+     * Catch-up is CAPPED at [MAX_FIRES_PER_TICK] fires per call:
+     * without the cap, a clock jump (device asleep for hours, a
+     * manual clock change) with a short interval would run the
+     * check once per elapsed interval in a single call — thousands
+     * of invocations blocking the calling thread. When the cap is
+     * hit and intervals are still due, the timer skips ahead so
+     * the next check is one interval after [nowMs], not still
+     * buried in the past.
      */
     fun tick(nowMs: Long): Int {
         if (stopped) return 0
         val next = nextFireMs ?: return 0
         var fired = 0
         var due = next
-        while (nowMs >= due && !stopped) {
+        while (nowMs >= due && !stopped && fired < MAX_FIRES_PER_TICK) {
             val ok = try {
                 check()
             } catch (e: Exception) {
@@ -89,7 +107,14 @@ class ReaTimer(
                 stopped = true
             }
         }
-        if (!stopped) nextFireMs = due
+        if (!stopped) {
+            nextFireMs = if (fired >= MAX_FIRES_PER_TICK && nowMs >= due) {
+                // Cap hit with intervals still due: skip ahead.
+                nowMs + intervalMs
+            } else {
+                due
+            }
+        }
         return fired
     }
 

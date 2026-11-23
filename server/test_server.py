@@ -55,6 +55,15 @@ class TestL64ComponentHashes(unittest.TestCase):
         self.assertTrue(r["accepted"])
         self.assertEqual(r["unexpected"], ["extra"])
 
+    def test_empty_expected_rejects_fail_closed(self):
+        # A server with no expected hashes configured must never
+        # accept everything (vacuous-accept bug, audit 2026-11-23).
+        r = ref.verify_component_hashes({"classes.dex": "aa"}, {})
+        self.assertFalse(r["accepted"])
+        self.assertIn("no expected", r["reason"])
+        r = ref.verify_component_hashes({}, {})
+        self.assertFalse(r["accepted"])
+
 
 class TestL65DeviceBinding(unittest.TestCase):
     def test_bind_and_check_accept(self):
@@ -85,6 +94,11 @@ class TestL65DeviceBinding(unittest.TestCase):
     def test_bind_empty_device_id_raises(self):
         with self.assertRaises(ValueError):
             ref.bind_device("", {})
+
+    def test_check_non_dict_stored_rejects(self):
+        # A corrupt stored value must reject, not raise AttributeError.
+        r = ref.check_device_binding("not-a-dict", "device-A")
+        self.assertFalse(r["accepted"])
 
 
 class TestL66RateLimit(unittest.TestCase):
@@ -121,6 +135,21 @@ class TestL66RateLimit(unittest.TestCase):
             ref.FailedAttestationLimiter(max_failures=0)
         with self.assertRaises(ValueError):
             ref.FailedAttestationLimiter(window_seconds=0)
+        with self.assertRaises(ValueError):
+            ref.FailedAttestationLimiter(max_devices=0)
+
+    def test_device_cap_bounds_state(self):
+        # Spamming distinct device ids must not grow state without
+        # limit (audit 2026-11-23).
+        lim = ref.FailedAttestationLimiter(max_failures=5,
+                                           window_seconds=3600,
+                                           max_devices=3)
+        for i in range(5):
+            lim.record_failure("dev-%d" % i, now=1000.0 + i)
+        self.assertLessEqual(len(lim._failures), 3)
+        self.assertNotIn("dev-0", lim._failures)
+        self.assertNotIn("dev-1", lim._failures)
+        self.assertIn("dev-4", lim._failures)
 
 
 class TestL67KillSwitch(unittest.TestCase):
@@ -184,14 +213,28 @@ class TestL68AnomalyScoring(unittest.TestCase):
             {"name": "b", "detected": True, "weight": 100}])
         self.assertEqual(r["score"], 100)
 
+    def test_bad_weights_raise(self):
+        # NaN/inf/str/bool/None weights must raise, not silently
+        # corrupt the score and band (audit 2026-11-23).
+        for bad in (float("nan"), float("inf"), float("-inf"),
+                    "10", True, None):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                ref.score_findings([{"name": "x", "detected": True,
+                                     "weight": bad}])
+        with self.assertRaises(ValueError):
+            ref.score_findings([{"name": "x", "detected": True,
+                                 "weight": -1}])
+        with self.assertRaises(ValueError):
+            ref.score_findings(["not-a-dict"])
+
 
 class TestL69AuditExport(unittest.TestCase):
     def test_round_trip(self):
         events = [
-            {"type": "antirea-tripwire/v1", "tripwire_id": "honeypot-secret-01",
+            {"type": "tripwire/v1", "tripwire_id": "honeypot-secret-01",
              "kind": "honeypot_secret_used", "app_package": "com.example.app",
              "timestamp_utc": "2026-11-23T00:00:00Z"},
-            {"type": "antirea-tripwire/v1", "tripwire_id": "honeypot-secret-01",
+            {"type": "tripwire/v1", "tripwire_id": "honeypot-secret-01",
              "kind": "integrity_failed", "app_package": "com.example.app"},
         ]
         out = ref.export_events(events, now=_ts("2026-11-23T01:00:00Z"))
@@ -205,6 +248,19 @@ class TestL69AuditExport(unittest.TestCase):
 
     def test_empty_export(self):
         self.assertEqual(ref.export_events([]), "")
+
+    def test_event_cannot_forge_schema_version(self):
+        # A caller-supplied schema_version must never relabel the
+        # export format (audit 2026-11-23).
+        out = ref.export_events(
+            [{"type": "x", "schema_version": "forged/v9",
+              "timestamp_utc": "2026-11-23T00:00:00Z"}])
+        parsed = ref.parse_export(out)
+        self.assertEqual(parsed[0]["schema_version"], ref.SCHEMA_VERSION)
+
+    def test_non_dict_event_raises(self):
+        with self.assertRaises(ValueError):
+            ref.export_events(["not-a-dict"])
 
 
 class TestL70KeyRotation(unittest.TestCase):
@@ -231,6 +287,13 @@ class TestL70KeyRotation(unittest.TestCase):
     def test_empty_old_key_raises(self):
         with self.assertRaises(ValueError):
             ref.rotate_keys("")
+
+    def test_malformed_rotation_raises(self):
+        with self.assertRaises(ValueError):
+            ref.old_key_still_valid({})
+        with self.assertRaises(ValueError):
+            ref.old_key_still_valid(
+                {"old_key_valid_until_utc": "not-a-date"})
 
 
 if __name__ == "__main__":

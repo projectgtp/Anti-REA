@@ -26,6 +26,16 @@ Runs every suite in one command and reports pass/fail per suite:
                    tamper/wrong-key/bad-input/verify)
   17. self-changing  L60 flag tests (default ON, explicit false OFF) +
                    make_method_blob.py --self-test
+  18. verifier-unit  Agent B: needle-derivation wiring (11 tests),
+                   CLI/verifier error handling (21 tests), attack
+                   multi-dex + tamper (10 tests), shipped-filename
+                   scan (10 tests)
+  19. jvm-integrity2 L23/L25/L27/L28/L29/L30/L54/L56/L57
+                   (ReaIntegrity2 + ReaTimer, incl. L57 dynamic load)
+  20. jvm-env2      L38-L45 (ReaEnv2)
+  21. jvm-timer     L30 (ReaTimer standalone, incl. catch-up cap)
+  22. jvm-audit     L16/L17 + runtime-audit fixes (RuntimeAuditTest)
+  23. jvm-hiding    L13/L49 (Python-encrypted vectors -> Kotlin)
 
 Usage:
   python3 tools/run_all.py [--skip-ghidra] [--out report.json]
@@ -56,6 +66,7 @@ STDLIB = TOOLS / "kotlin-2.0.21" / "lib" / "kotlin-stdlib.jar"
 
 sys.path.insert(0, str(ROOT / "transformer"))
 from crypto import encrypt_payload  # noqa: E402
+from native import encrypt_asset_bytes  # noqa: E402
 
 
 def run(cmd, cwd=None, env_extra=None, timeout=300):
@@ -103,7 +114,11 @@ class Runner:
         cp = str(jar) + ":" + str(STDLIB)
         if extra_cp:
             cp += ":" + extra_cp
-        return run([self.java, "-cp", cp, main, *args], timeout=120)
+        # Tests use repo-relative paths (e.g. Integrity2Test writes
+        # tests/rea-cfg-test.json and loads tests/no-such.jar), so
+        # run from the repo root, not from the launcher's cwd.
+        return run([self.java, "-cp", cp, main, *args], cwd=str(ROOT),
+                   timeout=120)
 
     # --- suites ------------------------------------------------------
     def s_self_check(self):
@@ -125,7 +140,7 @@ class Runner:
         tampered = ("B" if payload["blob_b64"][0] != "B" else "A") \
             + payload["blob_b64"][1:]
         rc, out = self.java_run(
-            jar, "com.antirea.runtime.MainKt",
+            jar, "com.appcore.runtime.MainKt",
             [payload["blob_b64"], payload["key_part1_b64"],
              payload["key_part2_b64"], "antirea-v1-test-value-hello",
              tampered])
@@ -144,7 +159,7 @@ class Runner:
             return self.record("jvm-modblock", False,
                                "kotlinc failed: " + out[-500:])
         rc, out = self.java_run(
-            jar, "com.antirea.runtime.ModBlockTestKt", [],
+            jar, "com.appcore.runtime.ModBlockTestKt", [],
             extra_cp=str(ANDROID_JAR))
         self.record("jvm-modblock", rc == 0 and "TEST-PASS" in out,
                     out.strip().splitlines()[-1] if out.strip() else
@@ -164,7 +179,7 @@ class Runner:
             return self.record("jvm-ggfix", False,
                                "kotlinc failed: " + out[-500:])
         rc, out = self.java_run(
-            jar, "com.antirea.runtime.GameGuardianFixTestKt", [],
+            jar, "com.appcore.runtime.GameGuardianFixTestKt", [],
             extra_cp=str(ANDROID_JAR))
         self.record("jvm-ggfix", rc == 0 and "TEST-PASS" in out,
                     out.strip().splitlines()[-1] if out.strip() else
@@ -192,7 +207,7 @@ class Runner:
         bad = self.work / "res_strings_tampered.json"
         bad.write_text(json.dumps({"version": 1, "entries": [bad_entry]}))
         rc, out = self.java_run(
-            jar, "com.antirea.runtime.ReaResStringsTestKt",
+            jar, "com.appcore.runtime.ReaResStringsTestKt",
             [str(good), "api_base",
              "https://testapp.example.invalid/api", str(bad)])
         self.record("jvm-resstrings", rc == 0 and "TEST-PASS" in out,
@@ -270,7 +285,13 @@ class Runner:
         ok = (outs["light"]["layers"] != outs["strict"]["layers"]
               and set(outs["light"]["layers"])
               < set(outs["strict"]["layers"])
-              and outs["light"]["count"] == 18)
+              # Light was 18 layers; the 2026-11-23 wiring audit moved
+              # L16/L17 to PARTIAL (their provider checks never run),
+              # so LIGHT_LAYERS must drop them and light becomes 16.
+              # tools/profiles.py is out of Agent B's scope — until
+              # it drops L16/L17, light resolution fails (rc=2) and
+              # this suite fails with it. See REGISTRY.md L16/L17.
+              and outs["light"]["count"] == 16)
         self.record("profiles", ok,
                     "light=%d strict=%d (light ⊂ strict)"
                     % (outs["light"]["count"], outs["strict"]["count"]))
@@ -323,7 +344,7 @@ class Runner:
             return self.record("jvm-methoddecrypt", False,
                                "kotlinc failed: " + out[-500:])
         rc, out = self.java_run(
-            jar, "com.antirea.runtime.MethodDecryptTestKt", [])
+            jar, "com.appcore.runtime.MethodDecryptTestKt", [])
         self.record("jvm-methoddecrypt", rc == 0 and "TEST-PASS" in out,
                     out.strip().splitlines()[-1] if out.strip() else
                     "rc=%d" % rc)
@@ -344,6 +365,145 @@ class Runner:
         self.record("self-changing",
                     rc2 == 0 and "SELF-TEST OK" in out2,
                     "flag tests OK + blob self-test rc=%d" % rc2)
+
+    def s_verifier_unit(self):
+        total, details = 0, []
+        for name in ("test_needle_derivation.py", "test_cli_errors.py",
+                     "test_attack_tamper.py", "test_shipped_names.py"):
+            rc, out = run([sys.executable,
+                           str(ROOT / "verifier" / "tests" / name)],
+                          timeout=180)
+            ok = rc == 0 and "OK" in out
+            total += 1 if ok else 0
+            tail = out.strip().splitlines()
+            details.append("%s: %s" % (
+                name, tail[-2] if len(tail) >= 2 else "rc=%d" % rc))
+        self.record("verifier-unit", total == 4, "; ".join(details))
+
+    def s_jvm_integrity2(self):
+        # L57 needs a jar to load: build DynamicHello first.
+        rt = ROOT / "runtime"
+        dyn_jar = self.work / "dynamic-test.jar"
+        rc, out = self.kotlinc(dyn_jar, [rt / "tests" / "DynamicHello.kt"])
+        if rc != 0:
+            return self.record("jvm-integrity2", False,
+                               "kotlinc DynamicHello failed: " + out[-500:])
+        jar = self.work / "integrity2-test.jar"
+        rc, out = self.kotlinc(jar, [rt / "ReaRuntime.kt",
+                                     rt / "ReaIntegrity.kt",
+                                     rt / "ReaIntegrity2.kt",
+                                     rt / "ReaTimer.kt",
+                                     rt / "tests" / "Integrity2Test.kt"])
+        if rc != 0:
+            return self.record("jvm-integrity2", False,
+                               "kotlinc failed: " + out[-500:])
+        rc, out = self.java_run(
+            jar, "com.appcore.runtime.Integrity2TestKt", [str(dyn_jar)],
+            extra_cp=str(ANDROID_JAR))
+        self.record("jvm-integrity2", rc == 0 and "TEST-PASS" in out,
+                    out.strip().splitlines()[-1] if out.strip() else
+                    "rc=%d" % rc)
+
+    def s_jvm_env2(self):
+        rt = ROOT / "runtime"
+        jar = self.work / "env2-test.jar"
+        # ReaEnv/Env2Test reference ReaTrace, which references
+        # ReaMemory — all three must be compiled together.
+        rc, out = self.kotlinc(jar, [rt / "ReaEnv.kt",
+                                     rt / "ReaEnv2.kt",
+                                     rt / "ReaTrace.kt",
+                                     rt / "ReaMemory.kt",
+                                     rt / "tests" / "Env2Test.kt"])
+        if rc != 0:
+            return self.record("jvm-env2", False,
+                               "kotlinc failed: " + out[-500:])
+        rc, out = self.java_run(
+            jar, "com.appcore.runtime.Env2TestKt", [],
+            extra_cp=str(ANDROID_JAR))
+        self.record("jvm-env2", rc == 0 and "TEST-PASS" in out,
+                    out.strip().splitlines()[-1] if out.strip() else
+                    "rc=%d" % rc)
+
+    def s_jvm_timer(self):
+        rt = ROOT / "runtime"
+        jar = self.work / "timer-test.jar"
+        rc, out = self.kotlinc(jar, [rt / "ReaTimer.kt",
+                                     rt / "tests" / "ReaTimerTest.kt"])
+        if rc != 0:
+            return self.record("jvm-timer", False,
+                               "kotlinc failed: " + out[-500:])
+        rc, out = self.java_run(
+            jar, "com.appcore.runtime.ReaTimerTestKt", [])
+        self.record("jvm-timer", rc == 0 and "TEST-PASS" in out,
+                    out.strip().splitlines()[-1] if out.strip() else
+                    "rc=%d" % rc)
+
+    def s_jvm_audit(self):
+        rt = ROOT / "runtime"
+        jar = self.work / "audit-test.jar"
+        rc, out = self.kotlinc(jar, [rt / "ReaRuntime.kt",
+                                     rt / "ReaIntegrity.kt",
+                                     rt / "ReaIntegrity2.kt",
+                                     rt / "ReaMethodDecrypt.kt",
+                                     rt / "ReaMethodLoader.kt",
+                                     rt / "ReaNative.kt",
+                                     rt / "ReaTraps.kt",
+                                     rt / "ReaAssets.kt",
+                                     rt / "tests" / "RuntimeAuditTest.kt"])
+        if rc != 0:
+            return self.record("jvm-audit", False,
+                               "kotlinc failed: " + out[-500:])
+        workdir = self.work / "audit-work"
+        workdir.mkdir(exist_ok=True)
+        rc, out = self.java_run(
+            jar, "com.appcore.runtime.RuntimeAuditTestKt", [str(workdir)],
+            extra_cp=str(ANDROID_JAR))
+        self.record("jvm-audit", rc == 0 and "TEST-PASS" in out,
+                    out.strip().splitlines()[-1] if out.strip() else
+                    "rc=%d" % rc)
+
+    def s_jvm_hiding(self):
+        # Vectors file (tests/hiding_vectors.txt) does not ship with
+        # the repo — generate it here from the SAME Python encryptor
+        # the CLI uses, so this tests real cross-language interop.
+        import base64 as _b64
+        rt = ROOT / "runtime"
+        plain = b"hiding-test-vector-asset-bytes-1234"
+        enc = encrypt_asset_bytes(plain)
+        tampered = bytearray(enc["blob_bytes"])
+        tampered[40] ^= 0x01
+        vectors = self.work / "hiding_vectors.txt"
+        vectors.write_text("\n".join([
+            _b64.b64encode(plain).decode("ascii"),
+            _b64.b64encode(enc["blob_bytes"]).decode("ascii"),
+            enc["key_part1_b64"], enc["key_part2_b64"],
+            _b64.b64encode(bytes(tampered)).decode("ascii")]) + "\n")
+        jar = self.work / "hiding-test.jar"
+        # ReaNative.javaGate calls ReaIntegrity2, whose transitive
+        # deps span most of runtime (ReaEnv/ReaIntegrity/ReaRepack/
+        # ReaGuardProvider/ReaModBlock/ReaTrace/ReaMemory) — compile
+        # the full runtime set, the same list runtime/build_smali.sh
+        # uses, instead of chasing the closure file by file.
+        rc, out = self.kotlinc(jar, [
+            rt / "ReaRuntime.kt", rt / "ReaEnv.kt",
+            rt / "ReaIntegrity.kt", rt / "ReaTraps.kt",
+            rt / "ReaGuardProvider.kt", rt / "ReaModBlock.kt",
+            rt / "ModBlockData.kt", rt / "ReaTrace.kt",
+            rt / "ReaMemory.kt", rt / "ReaRepack.kt",
+            rt / "ReaResStrings.kt", rt / "ReaIntegrity2.kt",
+            rt / "ReaMethodDecrypt.kt", rt / "ReaMethodLoader.kt",
+            rt / "ReaTimer.kt", rt / "ReaEnv2.kt",
+            rt / "ReaNative.kt", rt / "ReaAssets.kt",
+            rt / "tests" / "HidingTest.kt"])
+        if rc != 0:
+            return self.record("jvm-hiding", False,
+                               "kotlinc failed: " + out[-500:])
+        rc, out = self.java_run(
+            jar, "com.appcore.runtime.HidingTestKt", [str(vectors)],
+            extra_cp=str(ANDROID_JAR))
+        self.record("jvm-hiding", rc == 0 and "TEST-PASS" in out,
+                    out.strip().splitlines()[-1] if out.strip() else
+                    "rc=%d" % rc)
 
     def s_ghidra_smoke(self):
         if self.skip_ghidra:
@@ -386,7 +546,10 @@ class Runner:
                    self.s_profiles, self.s_ghidra_smoke,
                    self.s_junk_traps, self.s_frida_harness,
                    self.s_ios_profile, self.s_gradle_plugin,
-                   self.s_jvm_methoddecrypt, self.s_self_changing):
+                   self.s_jvm_methoddecrypt, self.s_self_changing,
+                   self.s_verifier_unit, self.s_jvm_integrity2,
+                   self.s_jvm_env2, self.s_jvm_timer, self.s_jvm_audit,
+                   self.s_jvm_hiding):
             try:
                 fn()
             except Exception as e:

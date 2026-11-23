@@ -239,6 +239,7 @@ def main(argv=None):
         ap.error("an APK path or --self-test is required")
 
     exit_code = 0
+    results = []
     for target in targets:
         result = check_apk(target)
         if args.cross_check:
@@ -250,9 +251,8 @@ def main(argv=None):
                 exit_code = 3
         if result["error"] is not None and not result["signing_block_found"]:
             exit_code = max(exit_code, 2)
-        if args.json:
-            print(json.dumps(result, indent=2, sort_keys=True))
-        else:
+        results.append(result)
+        if not args.json:
             print(f"{result['apk']}:")
             print(f"  signing block: {'found' if result['signing_block_found'] else 'NOT FOUND'}"
                   + (f" ({', '.join(result['block_ids'])})" if result["block_ids"] else ""))
@@ -267,6 +267,13 @@ def main(argv=None):
                     print(f"  cross-check: {p}")
                 if not result.get("cross_check"):
                     print("  cross-check: apksigner agrees")
+    if args.json:
+        # One target: one object (unchanged). Several: a JSON array —
+        # printing concatenated objects was not parseable JSON.
+        if len(results) == 1:
+            print(json.dumps(results[0], indent=2, sort_keys=True))
+        else:
+            print(json.dumps(results, indent=2, sort_keys=True))
     return exit_code
 
 

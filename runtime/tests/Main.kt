@@ -1,8 +1,8 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * JVM test Main for ReaRuntime (v1.0). No Android imports.
- * Usage: java -cp test.jar com.antirea.runtime.MainKt <blob> <part1> <part2> <expectedPlain> <tamperedBlob>
+ * Usage: java -cp test.jar com.appcore.runtime.MainKt <blob> <part1> <part2> <expectedPlain> <tamperedBlob>
  *   1. decrypt(blob) must equal expectedPlain  -> prints DECRYPT-OK
  *   2. decrypt(tamperedBlob) must throw IllegalStateException -> prints TAMPER-REFUSED
  * Any other outcome exits non-zero.

@@ -1,6 +1,7 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 import java.net.URLClassLoader
 import java.security.MessageDigest
@@ -199,11 +200,22 @@ object ReaIntegrity2 {
         }
     }
 
-    /** Read a config file and pin-check it; false on any read error. */
+    /**
+     * Read a config file and pin-check it; false on any read error.
+     * Streams the file (ReaIntegrity.hashStreamSha256) instead of
+     * readBytes() — a config file is small, but the same whole-file
+     * allocation that made ReaIntegrity.verifyFileSha256 able to
+     * OOM on a big APK has no place in a hash check either. An
+     * empty file still fails, as before (nothing checked is not a
+     * pass, and verifyConfigHash rejects empty input).
+     */
     fun verifyConfigFileHash(file: File, pinnedHex: String): ConfigHashResult {
+        if (pinnedHex.isBlank()) return ConfigHashResult(false, null)
         return try {
             if (!file.canRead()) return ConfigHashResult(false, null)
-            verifyConfigHash(file.readBytes(), pinnedHex)
+            if (file.length() == 0L) return ConfigHashResult(false, null)
+            val actual = FileInputStream(file).use { ReaIntegrity.hashStreamSha256(it) }
+            ConfigHashResult(hexEqualsConstantTime(actual, pinnedHex), actual)
         } catch (e: Exception) {
             ConfigHashResult(false, null)
         }
@@ -346,6 +358,22 @@ object ReaIntegrity2 {
     // ------------------------------------------------------------------
 
     /**
+     * Tri-state result of a reflective call. [Found] means the
+     * method ran and returned [value] — including a legitimate null
+     * return (a void method, or a method that returns null).
+     * [NotFound] means no matching method could be invoked at all.
+     * The distinction matters: [callByReflectionOrDirect] must only
+     * fall back to the direct call when reflection actually failed.
+     * The old code returned null for BOTH cases, so a method that
+     * legitimately returned null was invoked TWICE (once
+     * reflectively, once directly) — double side effects.
+     */
+    private sealed interface ReflectResult {
+        data class Found(val value: Any?) : ReflectResult
+        object NotFound : ReflectResult
+    }
+
+    /**
      * Invoke a named method on [target] via reflection — the call
      * site holds no direct reference to the method, so a static
      * scan of the call site does not reveal the target method name
@@ -356,6 +384,18 @@ object ReaIntegrity2 {
      * throws) when no matching method exists or invocation fails.
      */
     fun invokeReflectively(target: Any, methodName: String, vararg args: Any?): Any? {
+        return when (val r = invokeReflectivelyResult(target, methodName, *args)) {
+            is ReflectResult.Found -> r.value
+            ReflectResult.NotFound -> null
+        }
+    }
+
+    /** Reflective call with the failure distinguished from a null return. */
+    private fun invokeReflectivelyResult(
+        target: Any,
+        methodName: String,
+        vararg args: Any?
+    ): ReflectResult {
         return try {
             val candidates = target.javaClass.methods
                 .filter { it.name == methodName && it.parameterCount == args.size } +
@@ -367,26 +407,28 @@ object ReaIntegrity2 {
                     args[i] == null || params[i].isInstance(args[i]) ||
                         params[i].isPrimitive // primitives: trust count match
                 }
-            } ?: candidates.firstOrNull() ?: return null
+            } ?: candidates.firstOrNull() ?: return ReflectResult.NotFound
             try {
                 method.isAccessible = true
             } catch (e: Exception) {
                 // isAccessible may fail under a strict SecurityManager;
                 // public methods still invoke fine without it.
             }
-            method.invoke(target, *args)
+            ReflectResult.Found(method.invoke(target, *args))
         } catch (e: Exception) {
-            null
+            ReflectResult.NotFound
         }
     }
 
     /**
      * Reflection first, direct fallback second: try
-     * [invokeReflectively]; when it returns null AND [direct]
-     * supplies a value, return the direct call's value. When
-     * [direct] is null there is no fallback — null means "could not
-     * call". The [direct] lambda is only evaluated when reflection
-     * failed, so the direct reference exists only as a fallback path.
+     * [invokeReflectively]; when reflection actually FAILED to find
+     * or invoke the method (NOT when the method ran and returned
+     * null), and [direct] supplies a value, return the direct
+     * call's value. When [direct] is null there is no fallback —
+     * null means "could not call". The [direct] lambda is only
+     * evaluated when reflection failed, so a null-returning or void
+     * method is invoked exactly once, never twice.
      */
     fun <T> callByReflectionOrDirect(
         target: Any,
@@ -395,12 +437,13 @@ object ReaIntegrity2 {
         direct: (() -> T?)? = null
     ): T? {
         @Suppress("UNCHECKED_CAST")
-        val reflected = invokeReflectively(target, methodName, *args) as T?
-        if (reflected != null) return reflected
-        return try {
-            direct?.invoke()
-        } catch (e: Exception) {
-            null
+        return when (val r = invokeReflectivelyResult(target, methodName, *args)) {
+            is ReflectResult.Found -> r.value as T?
+            ReflectResult.NotFound -> try {
+                direct?.invoke()
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 

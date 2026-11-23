@@ -20,13 +20,14 @@ Layers:
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
-SCHEMA_VERSION = "antirea-audit/v1"
-ATTESTATION_TYPE = "antirea-attestation/v1"
-TRIPWIRE_TYPE = "antirea-tripwire/v1"
+SCHEMA_VERSION = "appcore-audit/v1"
+ATTESTATION_TYPE = "attestation/v1"
+TRIPWIRE_TYPE = "tripwire/v1"
 
 # L67: module-level revoked-build set, used when no explicit set is
 # passed. A real server would persist this in its database instead.
@@ -54,9 +55,16 @@ def verify_component_hashes(attestation_hashes, expected_hashes):
     "missing": [...], "unexpected": [...]}. Accept only when every
     expected component is present and matches exactly; extra
     components in the attestation are reported, not fatal.
+    An EMPTY expected set is a REJECT (fail closed): a server with
+    no expected hashes configured must never accept everything.
     """
     attestation_hashes = dict(attestation_hashes or {})
     expected_hashes = dict(expected_hashes or {})
+    if not expected_hashes:
+        return {"accepted": False,
+                "reason": "no expected component hashes configured",
+                "mismatched": [], "missing": [],
+                "unexpected": sorted(attestation_hashes)}
     mismatched = sorted(
         name for name, want in expected_hashes.items()
         if name in attestation_hashes
@@ -123,7 +131,7 @@ def check_device_binding(stored, presented):
         presented_id = presented.get("device_id")
     else:
         presented_id = presented
-    if not stored or not presented_id:
+    if not isinstance(stored, dict) or not stored or not presented_id:
         return {"accepted": False,
                 "reason": "no stored binding or no device id presented"}
     presented_hash = hashlib.sha256(
@@ -144,16 +152,32 @@ class FailedAttestationLimiter:
     persist this in Redis/its database). `now` is injectable (epoch
     seconds) so tests can use fake timestamps; production passes None
     for real time. Only failures count — successes never consume quota.
+    `max_devices` bounds the state: an attacker who spams distinct
+    device ids cannot grow the dict without limit — once the cap is
+    reached the first-seen device entry is evicted. (Eviction can
+    unblock an evicted device early; that is the safe direction for
+    availability, and a real server persists this in Redis/DB
+    instead of relying on the in-memory cap.)
     """
 
-    def __init__(self, max_failures=5, window_seconds=3600):
+    def __init__(self, max_failures=5, window_seconds=3600,
+                 max_devices=10000):
         if max_failures < 1:
             raise ValueError("Anti-REA L66: max_failures must be >= 1")
         if window_seconds <= 0:
             raise ValueError("Anti-REA L66: window_seconds must be > 0")
+        if max_devices < 1:
+            raise ValueError("Anti-REA L66: max_devices must be >= 1")
         self.max_failures = max_failures
         self.window_seconds = window_seconds
+        self.max_devices = max_devices
         self._failures = {}  # device_id -> sorted list of epoch seconds
+
+    def _evict_oldest(self):
+        """Drop first-seen device entries while over cap. Dicts
+        preserve insertion order, so the head is the stalest entry."""
+        while len(self._failures) > self.max_devices:
+            self._failures.pop(next(iter(self._failures)), None)
 
     def _prune(self, device_id, now):
         cutoff = now - self.window_seconds
@@ -168,9 +192,12 @@ class FailedAttestationLimiter:
         """Record one failed attestation. Returns True if the device
         is now blocked, False otherwise."""
         now = time.time() if now is None else now
+        if device_id not in self._failures:
+            self._evict_oldest()
         failures = self._prune(device_id, now)
         failures.append(now)
         self._failures[device_id] = failures
+        self._evict_oldest()
         return len(failures) >= self.max_failures
 
     def is_blocked(self, device_id, now=None):
@@ -228,7 +255,17 @@ def score_findings(findings):
     detected_weight = 0
     detected = []
     for f in findings:
+        if not isinstance(f, dict):
+            raise ValueError("Anti-REA L68: each finding must be a dict")
         weight = f.get("weight", 10)
+        # Reject bools (bool is an int subclass), non-numbers, NaN and
+        # infinities: any of them would silently corrupt the score and
+        # the band (NaN compares False against every threshold, so a
+        # NaN total would score "clean" no matter what was detected).
+        if isinstance(weight, bool) or not isinstance(weight, (int, float)) \
+                or not math.isfinite(weight):
+            raise ValueError(
+                "Anti-REA L68: finding weight must be a finite number")
         if weight < 0:
             raise ValueError("Anti-REA L68: finding weight must be >= 0")
         total += weight
@@ -250,7 +287,7 @@ def score_findings(findings):
 def export_events(events, now=None):
     """L69 — audit export: events -> JSONL string.
 
-    Each line is one JSON object: {"schema_version": "antirea-audit/v1",
+    Each line is one JSON object: {"schema_version": "appcore-audit/v1",
     "timestamp_utc": ..., plus the event's own fields}. Events that
     lack timestamp_utc get the export time (or `now`, epoch seconds,
     when given). Returns a "" string for an empty list. Every line is
@@ -258,8 +295,12 @@ def export_events(events, now=None):
     """
     lines = []
     for event in events or []:
-        record = {"schema_version": SCHEMA_VERSION}
-        record.update(dict(event))
+        if not isinstance(event, dict):
+            raise ValueError("Anti-REA L69: each event must be a dict")
+        record = dict(event)
+        # The canonical schema_version always wins: a caller-supplied
+        # "schema_version" field must never relabel the export format.
+        record["schema_version"] = SCHEMA_VERSION
         if not record.get("timestamp_utc"):
             record["timestamp_utc"] = _utc_iso(now)
         lines.append(json.dumps(record, sort_keys=True))
@@ -302,7 +343,13 @@ def old_key_still_valid(rotation, now=None):
     """L70 — True while the rotated-out key is still inside its grace
     window. `rotation` is a rotate_keys() result; `now` epoch seconds."""
     check = time.time() if now is None else now
-    valid_until = datetime.strptime(
-        rotation["old_key_valid_until_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=timezone.utc).timestamp()
+    try:
+        valid_until = datetime.strptime(
+            rotation["old_key_valid_until_utc"],
+            "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=timezone.utc).timestamp()
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError(
+            "Anti-REA L70: rotation is not a rotate_keys() result: %s"
+            % e)
     return check <= valid_until

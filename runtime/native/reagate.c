@@ -185,7 +185,7 @@ static int reagate_gate(const char *expected_hex,
 /* ------------------------------------------------------------------ */
 
 JNIEXPORT jboolean JNICALL
-Java_com_antirea_runtime_ReaNative_nativeGate(JNIEnv *env, jclass clazz,
+Java_com_appcore_runtime_ReaNative_nativeGate(JNIEnv *env, jclass clazz,
                                               jstring expectedHex,
                                               jbyteArray data) {
     (void)clazz;
@@ -205,7 +205,7 @@ Java_com_antirea_runtime_ReaNative_nativeGate(JNIEnv *env, jclass clazz,
 }
 
 JNIEXPORT jstring JNICALL
-Java_com_antirea_runtime_ReaNative_nativeVersion(JNIEnv *env, jclass clazz) {
+Java_com_appcore_runtime_ReaNative_nativeVersion(JNIEnv *env, jclass clazz) {
     (void)clazz;
     return (*env)->NewStringUTF(env, REAGATE_VERSION);
 }

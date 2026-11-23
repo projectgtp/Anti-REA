@@ -157,7 +157,7 @@ class TestFlagOnPlantsTraps(unittest.TestCase):
         out, report = junk.apply_junk_traps_to_smali(SMALI_SAMPLE, CFG_ON)
         self.assertIn("\\uD800", out)
         self.assertIn("\\uDC00", out)
-        self.assertIn("com/antirea/junk/JunkTraps", out)
+        self.assertIn("com/appcore/junk/JunkTraps", out)
         self.assertEqual(len(report), 2)
         self.assertEqual([r["kind"] for r in report],
                          ["lone-high-surrogate", "lone-low-surrogate"])
@@ -168,16 +168,16 @@ class TestFlagOnPlantsTraps(unittest.TestCase):
         for kind, spec in junk.TRAP_KINDS.items():
             self.assertIn(spec["mutf8"], out, kind)
         # Every trap string carries its ASCII marker.
-        self.assertEqual(out.count(b"antirea-junk:"), len(junk.TRAP_KINDS))
+        self.assertEqual(out.count(b"appcore-junk:"), len(junk.TRAP_KINDS))
 
     def test_dex_trap_entry_layout(self):
         # One trap entry parses as a string_data_item: uleb128 size,
         # marker + kind + trap bytes + ":end", NUL terminator.
         entry = junk.make_trap_string_data("lone-high-surrogate")
         self.assertEqual(entry[-1], 0)
-        # utf16_size = 13 ("antirea-junk:") + 19 (kind) + 1 (":")
+        # utf16_size = 13 ("appcore-junk:") + 19 (kind) + 1 (":")
         #              + 1 (lone surrogate) + 4 (":end") = 38 = 0x26.
-        self.assertTrue(entry.startswith(b"\x26antirea-junk:"
+        self.assertTrue(entry.startswith(b"\x26appcore-junk:"
                                          b"lone-high-surrogate:"))
         self.assertIn(b"\xed\xa0\x80", entry)
         self.assertTrue(entry.endswith(b":end\x00"))

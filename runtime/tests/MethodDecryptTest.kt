@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * JVM test for L60 ReaMethodDecrypt (runtime/ReaMethodDecrypt.kt).
@@ -9,7 +9,7 @@ package com.antirea.runtime
  *   kotlinc -cp $ANDROID_JAR -d method-test.jar \
  *     ReaMethodDecrypt.kt tests/MethodDecryptTest.kt
  *   java -cp method-test.jar:$STDLIB \
- *     com.antirea.runtime.MethodDecryptTestKt
+ *     com.appcore.runtime.MethodDecryptTestKt
  *
  * Checks:
  *  (a) seal/open round-trip on binary (non-UTF-8) payload bytes;

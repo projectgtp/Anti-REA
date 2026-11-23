@@ -26,7 +26,7 @@ The illegal sequences are:
   never valid UTF-8.
 
 Each trap string is wrapped in a plain ASCII marker so it can be
-found in a hex dump: `antirea-junk:<kind>:<trap bytes>:end`.
+found in a hex dump: `appcore-junk:<kind>:<trap bytes>:end`.
 
 ## Why it is experimental
 
@@ -65,7 +65,7 @@ after device proof.
 - **It never rewrites a live string.** Both plant functions only
   APPEND new decoy entries to the end of the input: new
   `const-string` lines inside a brand-new decoy class
-  (`com/antirea/junk/JunkTraps`, smali), or new string entries
+  (`com/appcore/junk/JunkTraps`, smali), or new string entries
   appended to a copy of a string-data blob (dex bytes). The whole
   input is a verbatim prefix of the output. No string the app itself
   reads ever contains a trap.

@@ -57,7 +57,10 @@ Schema (all keys optional except version):
     output:
       rea_ir_dir: "rea-ir"
 """
+import ipaddress
 import re
+from functools import lru_cache
+from urllib.parse import quote, urlparse
 
 
 class ConfigError(ValueError):
@@ -174,6 +177,241 @@ def protect_lists(cfg):
         "classes": list(p.get("classes") or []),
         "files": list(p.get("files") or []),
     }
+
+
+# --- needle auto-derivation (bare-domain fix, 2026-11-23) -----------
+#
+# TRIGGER: in the Bridge protection the full URL
+# "https://mbbridge.onrender.com" was hidden but the bare domain
+# "mbbridge.onrender.com" showed once in the protected APK — it was
+# never on the hide list, so no pass touched it. A URL in code has
+# many spellings that all identify the same endpoint, and every one
+# of them leaks the endpoint if it survives. derive_needles()
+# enumerates those spellings from each configured string so the
+# transformer hides all of them, not just the one spelling the
+# developer happened to write in the config.
+#
+# DERIVATION RULES (per input string; originals always included):
+#   * Only strings that look like a URL (scheme://...) or a bare
+#     host ([host][:port][/path...]) are derived from. Anything else
+#     (secrets, labels, plain words) passes through unchanged.
+#   * Bare host: the host alone ("example.com"), and "www.<host>"
+#     (skipped for IP literals and localhost, where www. is nonsense).
+#   * Host with its port when one is present ("example.com:8443"),
+#     the port-stripped form, and the explicit default port for the
+#     scheme (https/wss :443, http/ws :80).
+#   * Scheme variants: http <-> https, ws, wss — all four schemes
+#     over the same host/path — plus protocol-relative ("//host/...")
+#     and scheme-less ("host/path") forms.
+#   * Trailing-slash variants: with and without a trailing "/" on
+#     the path (root "" and "/" are the same pair).
+#   * URL-encoded forms of the full URL: the scheme separator
+#     alone as "%3A%2F%2F" (path slashes left plain), the separator
+#     plus path slashes as "%2F", and the fully-encoded form
+#     (quote(safe="")), each in upper- and lower-case hex
+#     (%2F vs %2f — hex case is insignificant, both appear in the
+#     wild). Only forms that can actually appear inside a string
+#     literal are generated — no other escaping is invented.
+#   * Hosts are case-insensitive: derived host forms use the
+#     lowercased host (urlparse already lowercases it). Paths are
+#     case-SENSITIVE and are never lowercased. The original spelling
+#     is always kept verbatim, so an originally-mixed-case URL is
+#     still hidden exactly as written.
+#   * Honeypot values are NEVER derived from: all_needles() feeds
+#     only protect.strings into derive_needles(). Honeypots are fake
+#     by design — deriving variants of them would plant extra fake
+#     endpoints that look real. Regex patterns are left alone too:
+#     deriving from a pattern would mean guessing what it matches.
+#
+# HONEST LIMITS (cannot be derived, by construction):
+#   * Subdomains other than www. ("internal.api.example.com") —
+#     unbounded, need an explicit config string or a regex pattern.
+#   * IP literals for a hostname URL (no DNS is done, and an IP can
+#     change) — list the IP explicitly if the app uses it.
+#   * URLs assembled at runtime from pieces ("mbbridge" +
+#     ".onrender.com", char arrays, Base64, resources) — no static
+#     literal contains the endpoint, so no derivation can name it.
+#   * Encoded www. forms and userinfo forms are not generated
+#     (rare; the plain www. / bare forms cover the realistic cases).
+
+_URL_SCHEMES = ("http", "https", "ws", "wss")
+_DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+_BARE_HOST_RE = re.compile(r"[A-Za-z0-9.\-]+(?::\d+)?(?:/.*)?\Z")
+
+
+def _lower_hex_variant(s):
+    """Lower-case the hex digits of every %XX escape in s."""
+    return re.sub(r"%[0-9A-Fa-f]{2}",
+                  lambda m: m.group(0).lower(), s)
+
+
+def _netloc(host, port):
+    """host (+ :port) as it appears after "://" — IPv6 hosts need
+    brackets, everything else is bare."""
+    if ":" in host and not host.startswith("["):
+        host = "[%s]" % host
+    return "%s:%d" % (host, port) if port else host
+
+
+def _derive_one(s, out):
+    """Add s and every derived variant of s to the set out."""
+    out.add(s)
+    stripped = s.strip()
+    if not stripped or any(c.isspace() for c in stripped):
+        return
+    host = None
+    port = None
+    path = ""
+    query = ""
+    fragment = ""
+    if "://" in stripped:
+        try:
+            parsed = urlparse(stripped)
+        except ValueError:
+            return
+        scheme = (parsed.scheme or "").lower()
+        if scheme not in _URL_SCHEMES:
+            return
+        try:
+            host = parsed.hostname
+        except ValueError:
+            return
+        if not host:
+            return
+        try:
+            port = parsed.port
+        except ValueError:
+            port = None
+        path = parsed.path or ""
+        query = parsed.query or ""
+        fragment = parsed.fragment or ""
+    else:
+        m = _BARE_HOST_RE.fullmatch(stripped)
+        if not m:
+            return
+        head = stripped.split("/", 1)[0]
+        hostport = head.split(":", 1)
+        host = hostport[0].lower()
+        # A bare host must look like a host, not a dotted label:
+        # no trailing dot, no empty labels, and a real-looking TLD
+        # (last label alphabetic, >= 2 chars) — otherwise a label
+        # such as "tunnel.key." (a secret label, not a host) would
+        # sprout fake "http://www.tunnel.key./" variants. Single
+        # labels are accepted only as localhost or an IP literal.
+        if "." in host:
+            labels = host.split(".")
+            if (host.endswith(".") or any(not lab for lab in labels)
+                    or not re.fullmatch(r"[A-Za-z]{2,}", labels[-1])):
+                return
+        elif host != "localhost":
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                return
+        if len(hostport) == 2:
+            try:
+                port = int(hostport[1])
+            except ValueError:
+                return
+        if "/" in stripped:
+            path = "/" + stripped.split("/", 1)[1]
+    # Host forms: bare host, plus www. unless IP / localhost /
+    # already www. — and, when the host DOES start with www.,
+    # the www-stripped bare host as well (a "www." URL must also
+    # hide its bare form, or the bare host slips through exactly
+    # like the Bridge case). The host is already lowercased
+    # (urlparse lowercases it; the bare-host branch lowercases
+    # explicitly).
+    try:
+        is_ip = ipaddress.ip_address(host) is not None
+    except ValueError:
+        is_ip = False
+    host_forms = [host]
+    if not is_ip and host != "localhost":
+        if host.startswith("www."):
+            host_forms.append(host[4:])
+        else:
+            host_forms.append("www." + host)
+    # Port forms: no port, the explicit port, the port-stripped
+    # form, and the scheme's default port spelled out.
+    port_forms = {None}
+    if port:
+        port_forms.add(port)
+    elif "://" in stripped:
+        scheme = urlparse(stripped).scheme.lower()
+        port_forms.add(_DEFAULT_PORTS[scheme])
+    # Path variants: with and without a trailing slash. The query
+    # and fragment (if any) ride along unchanged, after the slash.
+    if path in ("", "/"):
+        path_variants = ["", "/"]
+    elif path.endswith("/"):
+        path_variants = [path, path.rstrip("/")]
+    else:
+        path_variants = [path, path + "/"]
+    suffix = ("?" + query if query else "") + \
+        ("#" + fragment if fragment else "")
+    schemes = _URL_SCHEMES
+    for scheme in schemes:
+        for hf in host_forms:
+            for pf in sorted(port_forms, key=lambda p: (p is not None, p or 0)):
+                netloc = _netloc(hf, pf)
+                # Bare netloc (host[:port] with no path) — a
+                # "host:port" literal is a real spelling even when
+                # the configured URL carries a path.
+                out.add(netloc)
+                for pv in path_variants:
+                    out.add("%s://%s%s%s" % (scheme, netloc, pv, suffix))
+                    out.add("//%s%s%s" % (netloc, pv, suffix))
+                    out.add("%s%s%s" % (netloc, pv, suffix))
+    # URL-encoded forms of the full URL (original host, no www.,
+    # no default-port spelling — the common encodings of the URL as
+    # it was configured, across all four schemes).
+    orig_netloc = _netloc(host, port)
+    for scheme in schemes:
+        for pv in path_variants:
+            u = "%s://%s%s%s" % (scheme, orig_netloc, pv, suffix)
+            # E0: only the scheme separator encoded (path slashes
+            # left plain) — the hand-built / template spelling.
+            enc_sep_only = u.replace("://", "%3A%2F%2F")
+            enc_partial = enc_sep_only.replace("/", "%2F")
+            enc_full = quote(u, safe="")
+            for enc in (enc_sep_only, enc_partial, enc_full):
+                out.add(enc)
+                out.add(_lower_hex_variant(enc))
+
+
+@lru_cache(maxsize=32)
+def _derive_tuple(items):
+    out = set()
+    for s in items:
+        _derive_one(s, out)
+    return tuple(sorted(out))
+
+
+def derive_needles(strings):
+    """Expand config strings into the sorted, deduped list of
+    literals to hide: every original string plus every derived
+    variant (bare host, www., scheme/port/trailing-slash/encoded
+    forms — see the rules above). Non-URL strings pass through
+    unchanged; honeypot values and regex patterns must never be
+    passed in (see all_needles()). Stdlib only (urllib.parse)."""
+    if not strings:
+        return []
+    items = tuple(s for s in strings
+                  if isinstance(s, str) and s != "")
+    if not items:
+        return []
+    return list(_derive_tuple(items))
+
+
+def all_needles(cfg):
+    """The full hide list for a loaded config: protect.strings plus
+    every derived variant. Honeypot values (fake by design) and
+    regex patterns (left alone) are NEVER derived from."""
+    if not isinstance(cfg, dict):
+        return []
+    p = cfg.get("protect") or {}
+    return derive_needles(list(p.get("strings") or []))
 
 
 def honeypots(cfg):

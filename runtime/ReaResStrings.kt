@@ -1,10 +1,10 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * Anti-REA v1.0 — L06 resource-string runtime helper (finishes the
  * PARTIAL in v1.0: the CLI now encrypts sensitive res/values strings
- * into assets/antirea/res_strings.json and replaces the XML value
- * with the placeholder "antirea-encrypted:<name>").
+ * into assets/meta/res_strings.json and replaces the XML value
+ * with the placeholder "meta-encrypted:<name>").
  *
  * Same blob format as ReaRuntime (sha256(plain) || plain, XOR with
  * the 32-byte key reconstructed from two split parts; see
@@ -18,7 +18,7 @@ package com.antirea.runtime
  * ReaResStrings.decryptResource("x") explicitly wherever it needs a
  * sensitive resource string, and must load the JSON once at startup:
  *
- *     val json = assets.open("antirea/res_strings.json")
+ *     val json = assets.open("meta/res_strings.json")
  *         .bufferedReader().readText()
  *     ReaResStrings.loadFromJson(json)
  *     val apiBase = ReaResStrings.decryptResource("api_base")
@@ -41,11 +41,11 @@ object ReaResStrings {
     private val entries = LinkedHashMap<String, Entry>()
 
     /** Placeholder the CLI writes into res/values XML. */
-    fun placeholder(name: String): String = "antirea-encrypted:$name"
+    fun placeholder(name: String): String = "meta-encrypted:$name"
 
     /** True when a value is an Anti-REA resource placeholder. */
     fun isPlaceholder(value: String): Boolean =
-        value.startsWith("antirea-encrypted:")
+        value.startsWith("meta-encrypted:")
 
     /** Register one entry (used by loadFromJson and by tests). */
     fun register(entry: Entry) {
@@ -70,14 +70,14 @@ object ReaResStrings {
     fun decryptResource(name: String): String {
         val entry = entries[name]
             ?: throw IllegalStateException(
-                "Anti-REA: no encrypted resource registered for '$name'"
+                "AppCore: no encrypted resource registered for '$name'"
             )
         val plain = ReaRuntime.decrypt(
             entry.blobB64, entry.keyPart1B64, entry.keyPart2B64
         )
         if (!ReaRuntime.verifyText(plain, entry.plainSha256)) {
             throw IllegalStateException(
-                "Anti-REA: resource '$name' failed plain_sha256 check"
+                "AppCore: resource '$name' failed plain_sha256 check"
             )
         }
         return plain
@@ -85,7 +85,7 @@ object ReaResStrings {
 
     /**
      * Load entries from the JSON the CLI writes to
-     * assets/antirea/res_strings.json:
+     * assets/meta/res_strings.json:
      *   {"version": 1, "entries": [{"name": ..., "blob_b64": ...,
      *     "key_part1_b64": ..., "key_part2_b64": ...,
      *     "plain_sha256": ...}, ...]}
@@ -114,7 +114,7 @@ object ReaResStrings {
         }
         if (loaded == 0) {
             throw IllegalArgumentException(
-                "Anti-REA: res_strings.json has no usable entries"
+                "AppCore: res_strings.json has no usable entries"
             )
         }
         return loaded

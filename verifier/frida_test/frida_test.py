@@ -78,7 +78,7 @@ CHECKS = [
         "id": "F1",
         "name": "attach",
         "title": "Frida agent attach to the running app",
-        "target": "com.antirea.runtime.ReaEnv (fridaMapsDetected, "
+        "target": "com.appcore.runtime.ReaEnv (fridaMapsDetected, "
                   "fridaPortsDetected, checkAll)",
         "method": "frida -U -f <package> -l frida_script.js --no-pause; "
                   "agent sends ATTACHED, then reads ReaEnv.checkAll()",
@@ -129,9 +129,9 @@ CHECKS = [
         "id": "F3",
         "name": "hook",
         "title": "Hook ReaRuntime.decrypt / verifyIntegrity",
-        "target": "com.antirea.runtime.ReaRuntime.decrypt, "
+        "target": "com.appcore.runtime.ReaRuntime.decrypt, "
                   ".verifyIntegrity, .reconstructKey",
-        "method": "Java.use('com.antirea.runtime.ReaRuntime'); hook "
+        "method": "Java.use('com.appcore.runtime.ReaRuntime'); hook "
                   "decrypt() to log its return value (first 8 chars "
                   "only, never the full plaintext) and hook "
                   "verifyIntegrity() to force it to return true; then "
@@ -155,7 +155,7 @@ CHECKS = [
         "id": "F4",
         "name": "memread",
         "title": "Read an obfuscated value / test secret from RAM",
-        "target": "com.antirea.runtime.ReaMemory$ObfuscatedLong / "
+        "target": "com.appcore.runtime.ReaMemory$ObfuscatedLong / "
                   "ObfuscatedInt, and the test-app secret "
                   "TEST-SECRET-7f3a9-generic (fake test value)",
         "method": "Memory.scan() every readable range for the UTF-8 "

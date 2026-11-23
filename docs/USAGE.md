@@ -51,9 +51,9 @@ See `anti-rea.yaml` (annotated example). The rules:
 5. Writes decoy classes, honeypot strings, and dead-code mazes.
 6. Sweeps XML resources/manifest for needles (L06 PARTIAL: replaced
    with a decoy placeholder, not runtime-decrypted).
-7. Writes `assets/antirea/manifest.json` (blob hashes + layers) and
+7. Writes `assets/meta/manifest.json` (blob hashes + layers) and
    the REA-IR JSON next to the output APK.
-8. Rebuilds with `apktool`, injects `assets/antirea/build.json` (dex
+8. Rebuilds with `apktool`, injects `assets/meta/build.json` (dex
    SHA-256), zipaligns, and signs with a fresh ephemeral test keystore.
 9. Prints the output SHA-256, size, layers applied, and needles found.
 

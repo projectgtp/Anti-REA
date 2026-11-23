@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 /**
  * Anti-REA v1.0 defensive traps — detection and delay only.
@@ -11,7 +11,7 @@ package com.antirea.runtime
  */
 
 /** Event recorded when a honeypot value is touched. No secrets in here. */
-data class TripwireEvent(val honeypotId: String, val timestampMillis: Long)
+data class TripwireEvent(val tripwireId: String, val timestampMillis: Long)
 
 /**
  * Honeypot: a fake value that legitimate code never touches. If anything
@@ -20,16 +20,17 @@ data class TripwireEvent(val honeypotId: String, val timestampMillis: Long)
  * to the app, which decides whether (and how) to report it.
  *
  * Typical use: register a plausible-looking fake key/label at startup;
- * if useHoneypot() is ever called, an automated scanner or a tampered
+ * if useTripwire() is ever called, an automated scanner or a tampered
  * build is probing values it should not know about.
  */
-class Honeypot(private val onTrip: (TripwireEvent) -> Unit = {}) {
+class Tripwire(private val onTrip: (TripwireEvent) -> Unit = {}) {
 
     private val values = mutableMapOf<String, String>()
     private val trips = mutableListOf<TripwireEvent>()
 
     /** Register a fake value under [id]. Overwrites any previous value for [id]. */
-    fun registerHoneypot(id: String, fakeValue: String) {
+    @Synchronized
+    fun registerTripwire(id: String, fakeValue: String) {
         values[id] = fakeValue
     }
 
@@ -37,8 +38,12 @@ class Honeypot(private val onTrip: (TripwireEvent) -> Unit = {}) {
      * Returns the fake value for [id] (or null if never registered) AND
      * records a tripwire event via [onTrip]. The return value is fake by
      * design — it must never be used as a real key, URL, or credential.
+     * Synchronized: the app may touch honeypots from several threads,
+     * and unsynchronized ArrayList/HashMap writes from two threads can
+     * throw or silently lose a trip.
      */
-    fun useHoneypot(id: String): String? {
+    @Synchronized
+    fun useTripwire(id: String): String? {
         val value = values[id] ?: return null
         val event = TripwireEvent(id, System.currentTimeMillis())
         trips.add(event)
@@ -51,12 +56,15 @@ class Honeypot(private val onTrip: (TripwireEvent) -> Unit = {}) {
     }
 
     /** How many times any honeypot has been touched. */
+    @Synchronized
     fun tripCount(): Int = trips.size
 
     /** All recorded trips, oldest first. Returns a copy. */
+    @Synchronized
     fun trips(): List<TripwireEvent> = trips.toList()
 
     /** Forget all registered values and trips (e.g. on logout). */
+    @Synchronized
     fun clear() {
         values.clear()
         trips.clear()
@@ -80,21 +88,29 @@ class DelayedFailure(private val threshold: Int = 3) {
     private var failureCount: Int = 0
 
     init {
-        require(threshold >= 1) { "Anti-REA: DelayedFailure threshold must be >= 1" }
+        require(threshold >= 1) { "AppCore: DelayedFailure threshold must be >= 1" }
     }
 
-    /** Record one integrity failure (blob hash mismatch, dex mismatch, ...). */
+    /**
+     * Record one integrity failure (blob hash mismatch, dex mismatch, ...).
+     * Synchronized: failureCount++ is a read-modify-write, and two
+     * threads recording at once could otherwise lose a failure.
+     */
+    @Synchronized
     fun recordIntegrityFailure() {
         failureCount++
     }
 
     /** True while failures are below the threshold; false once it is reached. */
+    @Synchronized
     fun allowSensitiveAction(): Boolean = failureCount < threshold
 
     /** Current failure count. */
+    @Synchronized
     fun failureCount(): Int = failureCount
 
     /** Reset after a verified-clean state (e.g. fresh install, re-verified blobs). */
+    @Synchronized
     fun reset() {
         failureCount = 0
     }
@@ -106,9 +122,9 @@ class DelayedFailure(private val threshold: Int = 3) {
  * values instead of real ones. They are NOT real keys, URLs, or
  * credentials, and must never be used as such.
  */
-object ReaDecoys {
-    const val FAKE_API_KEY_LABEL: String = "antirea-decoy-api-key"
-    const val FAKE_ENDPOINT_LABEL: String = "antirea-decoy-endpoint"
-    const val FAKE_TOKEN_LABEL: String = "antirea-decoy-token"
-    const val MARKER: String = "antirea-decoy"
+object ReaLures {
+    const val FAKE_API_KEY_LABEL: String = "appcore-lure-api-key"
+    const val FAKE_ENDPOINT_LABEL: String = "appcore-lure-endpoint"
+    const val FAKE_TOKEN_LABEL: String = "appcore-lure-token"
+    const val MARKER: String = "appcore-lure"
 }

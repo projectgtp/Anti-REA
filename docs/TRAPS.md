@@ -27,7 +27,7 @@ any device or analyst.
    human review; repeated events may escalate (server policy, not
    this tool).
 4. Traps chain: all honeypots share one tripwire format
-   (`antirea-tripwire/v1`, see docs/SERVER.md), so the second trap
+   (`tripwire/v1`, see docs/SERVER.md), so the second trap
    an attacker touches is recognised as the same actor.
 5. If a trap ever fires on a legitimate user, that is a bug — the fake
    values must never be reachable from normal app code paths. Only

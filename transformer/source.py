@@ -5,7 +5,7 @@ Generalises the v0.1 Bridge transformer to ANY Kotlin/Java source
 file: every string literal whose value is a configured exact needle
 (or matches a configured pattern) is replaced by a
 ReaRuntime.decrypt("blob", "part1", "part2") call, and a REA-IR entry
-is emitted. The runtime (com.antirea.runtime.ReaRuntime) must be on
+is emitted. The runtime (com.appcore.runtime.ReaRuntime) must be on
 the app's classpath — for APK builds that is the injected smali; for
 source builds add runtime/*.kt to the sources.
 
@@ -14,7 +14,7 @@ Rules (honest, narrow):
   strings (Kotlin triple-quote), string templates, annotations, and
   multi-line literals are SKIPPED and recorded — never rewritten
   blindly, because a wrong rewrite breaks the build.
-- The file must already import (or be given) com.antirea.runtime;
+- The file must already import (or be given) com.appcore.runtime;
   the transformer inserts the import after the package line when the
   file is Kotlin/Java and the import is absent.
 - A literal inside a comment is left alone (comment text is not a
@@ -26,11 +26,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config import derive_needles  # noqa: E402
 from crypto import encrypt_payload  # noqa: E402
 
 STR_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
-IMPORT_KT = "import com.antirea.runtime.ReaRuntime"
-IMPORT_JAVA = "import com.antirea.runtime.ReaRuntime;"
+IMPORT_KT = "import com.appcore.runtime.ReaRuntime"
+IMPORT_JAVA = "import com.appcore.runtime.ReaRuntime;"
 
 
 def _unescape(s):
@@ -62,7 +63,15 @@ def _unescape(s):
 def transform_source_text(text, needles, patterns, payloads):
     """Return (new_text, replaced_count, skipped_list). payloads maps
     needle -> crypto dict. Needles not yet in payloads are encrypted
-    here and added to payloads."""
+    here and added to payloads. `needles` is expanded through
+    derive_needles() first (bare host, www., scheme/port/
+    trailing-slash/encoded forms), and URL/host needles also match
+    case-insensitively — hosts are case-insensitive, and the payload
+    encrypts the literal as written, so the runtime value is
+    byte-identical (see smali._ci_matchable)."""
+    from smali import _ci_matchable
+    needles = derive_needles(list(needles or []))
+    needles_set = set(needles)
     lines = text.splitlines()
     out, replaced, skipped = [], 0, []
     for lineno, line in enumerate(lines, 1):
@@ -79,16 +88,24 @@ def transform_source_text(text, needles, patterns, payloads):
             raw = m.group(1)
             value = _unescape(raw)
             hit = None
-            if value in needles:
+            if value in needles_set:
                 hit = value
             else:
-                for pat in patterns:
-                    try:
-                        if re.fullmatch(pat, value):
-                            hit = value
-                            break
-                    except re.error:
-                        pass
+                # Case variant of a URL/host needle.
+                low = value.lower()
+                for needle in needles_set:
+                    if (_ci_matchable(needle)
+                            and needle.lower() == low):
+                        hit = value
+                        break
+                if hit is None:
+                    for pat in patterns:
+                        try:
+                            if re.fullmatch(pat, value):
+                                hit = value
+                                break
+                        except re.error:
+                            pass
             if hit is None:
                 # Embedded needle: "…for example https://…" — split the
                 # literal into concatenation: "prefix" + decrypt() + "suffix".

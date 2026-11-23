@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import android.content.Context
 import android.content.pm.PackageInfo

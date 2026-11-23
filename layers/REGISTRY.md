@@ -6,7 +6,9 @@ Status: **IMPLEMENTED** = code in v1.0 + tested in VERIFICATION-REPORT-v1.0.md
 not built yet — never counted as protection.
 
 Honest count (CLAIMED here, CONFIRMED only by the verification report):
-**99 IMPLEMENTED, 4 PARTIAL, 0 PLANNED — out of 103 slots.**
+**97 IMPLEMENTED, 6 PARTIAL, 0 PLANNED — out of 103 slots.**
+(Audit 2026-11-23, Agent B: L16/L17 moved IMPLEMENTED → PARTIAL — see
+their rows; L60's row now states the no-wiring reason precisely.)
 If the verification report finds any claimed layer missing or untested,
 the report's count wins and this file must be corrected to match it.
 The 99% protection goal is a GOAL, not a measured guarantee. No app is
@@ -28,11 +30,11 @@ F=Frida/dynamic, D=debugger, R=runtime dump.
 | L03 | Decoy strings (fake secret-looking literals) | J,A,S | IMPLEMENTED | transformer/smali.py |
 | L04 | Honeypot secrets (fake keys, tripwire id attached) | J,A,S,F | IMPLEMENTED | transformer/smali.py, docs/TRAPS.md |
 | L05 | Honeypot endpoints (fake URLs, tripwire id attached) | J,A,S,F | IMPLEMENTED | transformer/smali.py, docs/TRAPS.md |
-| L06 | Resource string sweep (res/values + manifest needles) | J,A,S | IMPLEMENTED | anti-rea.py — sweep + decoy replace + encrypt res/values strings to assets/antirea/res_strings.json (runtime/ReaResStrings.kt decrypt on demand); JVM test PASS 2026-11-23. Limit: getString() returns the placeholder; the app must call decryptResource(name) explicitly. |
+| L06 | Resource string sweep (res/values + manifest needles) | J,A,S | IMPLEMENTED | anti-rea.py — sweep + decoy replace + encrypt res/values strings to assets/meta/res_strings.json (runtime/ReaResStrings.kt decrypt on demand); JVM test PASS 2026-11-23. Limit: getString() returns the placeholder; the app must call decryptResource(name) explicitly. |
 | L07 | DEX string sweep verify (control vs protected, 0 must hold) | J,A,S | IMPLEMENTED | verifier/attack.py |
-| L08 | R8 rename mapping (class/method rename at build) | J,A,G | IMPLEMENTED | transformer/native.py generate_r8_rules() + anti-rea.py protect writes proguard-rules-antirea.pro to the REA-IR dir; test PASS 2026-11-23. Limit: rules do nothing until applied in the app's own Gradle build. |
+| L08 | R8 rename mapping (class/method rename at build) | J,A,G | IMPLEMENTED | transformer/native.py generate_r8_rules() + anti-rea.py protect writes proguard-rules-appcore.pro to the REA-IR dir; test PASS 2026-11-23. Limit: rules do nothing until applied in the app's own Gradle build. |
 | L09 | Manifest string hide (provider inject + label sweep) | A,S | IMPLEMENTED | anti-rea.py (ReaGuardProvider entry) |
-| L10 | Decoy-class camouflage (decoys under com/antirea/decoy/, generic getSecretNN names; NOT under the app package in v1.0) | J,A,G | IMPLEMENTED | transformer/smali.py |
+| L10 | Decoy-class camouflage (decoys under com/appcore/cache/, generic getSecretNN names; NOT under the app package in v1.0) | J,A,G | IMPLEMENTED | transformer/smali.py |
 | L11 | Control-flow flatten (smali) | J,G | IMPLEMENTED | transformer/smali.py flatten_smali_file() + anti-rea.py protect; test-app protect PASS (attack 0/0/0, apksigner v2+v3 true) 2026-11-23. Limit: compile/assemble-verified only, never device-tested. |
 | L12 | Native string hide (.so literals) | G | IMPLEMENTED | transformer/native.py scan/hide_elf_strings() + tools/gen_native_blobs.py + anti-rea.py protect; tested on a compiled arm64 .so + a libdsversion.so copy (size identical, readelf OK) 2026-11-23. Limit: only complete-printable-run needles are replaced; runtime-used strings must not be listed. |
 | L13 | Asset encrypt (assets/ blobs) | A,S | IMPLEMENTED | transformer/native.py encrypt_asset_bytes() + runtime/ReaAssets.kt + anti-rea.py protect (config assets list); JVM round-trip PASS + APK test PASS 2026-11-23. Limit: the app must call decryptAsset explicitly. |
@@ -43,13 +45,13 @@ F=Frida/dynamic, D=debugger, R=runtime dump.
 
 | ID | Layer | Counters | Status | Where |
 |----|-------|----------|--------|-------|
-| L16 | APK signature check at startup (provider) | A,F | IMPLEMENTED | runtime/ReaIntegrity.kt, ReaGuardProvider |
-| L17 | DEX SHA-256 check | A,F | IMPLEMENTED | runtime/ReaIntegrity.kt |
+| L16 | APK signature check at startup (provider) | A,F | PARTIAL | runtime/ReaIntegrity.kt, ReaGuardProvider. **NOT wired as described (audit 2026-11-23): there is NO signature-check code in ReaGuardProvider or ReaIntegrity.kt — only SHA-256 helpers (verifyFileSha256 etc.), and the provider never inspects the signing certificate. The provider runs env checks (ReaEnv.checkAll), mod-block signals (L101), and a dex-hash read of assets/meta/dex.sha256 — which protect never writes (see L17). The real signing-certificate comparison lives in ReaRepack.kt (L103: verifySigningCertSha256, app-invoked, expected-hash blob made by tools/make_sig_blob.py, NOT auto-injected by the CLI). A startup signature check needs provider code that reads the cert (or L103 wired into the provider) — until then this layer checks nothing at startup.** |
+| L17 | DEX SHA-256 check | A,F | PARTIAL | runtime/ReaIntegrity.kt (verifyDexSha256 / verifyOwnApkSha256 / verifyFileSha256; unit-tested in runtime/tests/RuntimeAuditTest.kt, run by tools/run_all.py as jvm-audit). **NOT wired end to end (audit 2026-11-23): the provider's checkDexHash() reads assets/meta/dex.sha256, which `anti-rea.py protect` never writes — the dex hash is recorded only in assets/meta/build.json + REA-IR, so dexCheckPassed is always null ("not checked") in a protected APK. Wiring it also needs a runtime-side fix: the provider compares the expected value against the APK FILE hash (verifyFileSha256), which cannot be embedded before signing (chicken-and-egg) — it must hash the dex bytes via verifyDexSha256 instead. Note: both halves have now landed (audit 2026-11-23) — protect writes assets/meta/ and the provider reads assets/meta/ — but the check still never runs because protect never writes dex.sha256 (see above). No DEX hash is verified at startup.** |
 | L18 | Component blob integrity (hash-prefix in every blob) | F | IMPLEMENTED | runtime/ReaRuntime.kt |
-| L19 | Manifest hash (REA-IR manifest hash) | A,F | IMPLEMENTED | transformer, assets/antirea/manifest.json |
+| L19 | Manifest hash (REA-IR manifest hash) | A,F | IMPLEMENTED | transformer, assets/meta/manifest.json |
 | L20 | Re-check on decrypt (verify before every unlock) | F | IMPLEMENTED | runtime/ReaRuntime.kt |
 | L21 | Tamper refuse (throw, never return a wrong value) | F | IMPLEMENTED | runtime/ReaRuntime.kt |
-| L22 | File-hash manifest (dex + manifest + blobs) | A,F | IMPLEMENTED | anti-rea.py (assets/antirea/manifest.json) |
+| L22 | File-hash manifest (dex + manifest + blobs) | A,F | IMPLEMENTED | anti-rea.py (assets/meta/manifest.json) |
 | L23 | Installer-origin check (Play vs sideload) | F | IMPLEMENTED | runtime/ReaIntegrity2.kt checkInstallerOrigin (+ ReaRepack classifyInstaller); JVM test PASS 2026-11-23. Signal only, never a refusal alone. |
 | L24 | Signature v2/v3 scheme check | A,F | IMPLEMENTED | verifier/sigcheck.py + anti-rea.py verify reports schemes; test PASS on control + protected APK (v1/v2/v3) 2026-11-23. |
 | L25 | Runtime self-hash (own class hash) | F | IMPLEMENTED | runtime/ReaIntegrity2.kt hashClassBytes/verifySelfHash; JVM test PASS 2026-11-23. |
@@ -89,7 +91,7 @@ F=Frida/dynamic, D=debugger, R=runtime dump.
 | L49 | Native check stub (.so integrity gate) | G,F | IMPLEMENTED | runtime/native/reagate.c -> lib/arm64-v8a/libreagate.so (NDK 22.1.7171670, real compiled .so, 7,144 B) + runtime/ReaNative.kt (native-first, Kotlin fallback) + anti-rea.py copies the .so into lib/arm64-v8a/; JVM test PASS 2026-11-23. Limit: arm64-v8a only, never device-tested. |
 | L50 | Delayed silent failure (refuse a sensitive action after N calls once integrity failed) | F | IMPLEMENTED | runtime/ReaTraps.kt |
 | L51 | Honeypot tripwire (use of a fake value records an event) | F | IMPLEMENTED | runtime/ReaTraps.kt |
-| L52 | Decoy classes (plausible, useless) | J,A,G | IMPLEMENTED | transformer/smali.py |
+| L52 | Decoy classes (plausible, useless) | J,A,G | IMPLEMENTED | transformer/smali.py (written directly under com/appcore/cache/ as CacheNN since the 2026-11-23 audit; anti-rea.py _rename_protector_paths() remains as a no-op safety net for older trees) |
 | L53 | Dead-code maze (branch chains resolving to 0) | J,G | IMPLEMENTED | transformer/smali.py |
 | L54 | Anti-hook re-check inside decrypt path | F | IMPLEMENTED | runtime/ReaIntegrity2.kt decryptWithEnvCheck; JVM test PASS 2026-11-23 (env-fire never decrypts). |
 | L55 | String chunking (split literals across calls) | J,A,S | IMPLEMENTED | transformer/smali.py chunk_string_literals() + anti-rea.py protect; test-app protect PASS, 2,165 strings chunked, witness literal 0 in protected dex 2026-11-23. |
@@ -97,7 +99,7 @@ F=Frida/dynamic, D=debugger, R=runtime dump.
 | L57 | Dynamic class loading (dex in assets) | J,A | IMPLEMENTED | runtime/ReaIntegrity2.kt loadClassFromJar (+ Android loadClassFromDex via DexClassLoader, device part untested); JVM test PASS 2026-11-23. |
 | L58 | Opaque predicates (always-true/false branches) | G | IMPLEMENTED | transformer/smali.py insert_opaque_predicates() + anti-rea.py protect; test-app protect PASS 2026-11-23. |
 | L59 | Method-call indirection | J,G | IMPLEMENTED | transformer/smali.py indirect_method_calls() + write_indirect_stub_class() + anti-rea.py protect; test-app protect PASS (setContentView routed through ReaIndirect) 2026-11-23. |
-| L60 | Runtime code mutation (self-modifying) | F | PARTIAL | IMPLEMENTED as opt-out core, DEFAULT ON per user order 2026-11-23: runtime/ReaMethodDecrypt.kt (seal/open/rotate, XOR + split key + SHA-256, tamper refuses) + runtime/ReaMethodLoader.kt (DexClassLoader, plaintext deleted after load, fail-closed) + tools/make_method_blob.py + config flag experimental.self_changing_code (default true; false turns it off). JVM core TEST-PASS 2026-11-23 (round-trip/tamper/wrong-key/rotate/bad-input/verify), flag tests 9 OK, blob self-test 4/4 OK, loader COMPILE-OK. Docs: docs/L60-SELF-CHANGING-CODE.md (danger warning stays: never first launch, never login/payment, only non-critical paths, only after real-device proof; Play Protect risk; decrypted code stays in RAM). Limits: Android loader compile-verified only, NEVER device-tested; stored-form rotation only — loaded code stays loaded. |
+| L60 | Runtime code mutation (self-modifying) | F | PARTIAL | IMPLEMENTED as opt-out core, DEFAULT ON per user order 2026-11-23: runtime/ReaMethodDecrypt.kt (seal/open/rotate, XOR + split key + SHA-256, tamper refuses) + runtime/ReaMethodLoader.kt (DexClassLoader, plaintext deleted after load, fail-closed) + tools/make_method_blob.py + config flag experimental.self_changing_code (default true; false turns it off). JVM core TEST-PASS 2026-11-23 (round-trip/tamper/wrong-key/rotate/bad-input/verify), flag tests 9 OK, blob self-test 4/4 OK, loader COMPILE-OK. Docs: docs/L60-SELF-CHANGING-CODE.md (danger warning stays: never first launch, never login/payment, only non-critical paths, only after real-device proof; Play Protect risk; decrypted code stays in RAM). Limits: Android loader compile-verified only, NEVER device-tested; stored-form rotation only — loaded code stays loaded. **NO APK WIRING (audit 2026-11-23): the flag exists and the core is tested, but `anti-rea.py protect` never calls the loader/sealer — no ReaMethodDecrypt/Loader smali exists in runtime/smali/ (build_smali.sh lists the .kt files but smali/ predates them), no config key names a method payload dex to seal, and no protect step writes a method blob into the APK. Wiring it for real needs all three (fresh runtime smali + a config payload key + a protect step that seals and injects the blob with a test proving blob + loader are present in the protected output); until then this layer protects nothing in a shipped APK and stays PARTIAL.** |
 
 ## E. Server (L61–L70) — reference implementation in server/
 
@@ -118,7 +120,7 @@ and revoked-set with real storage.
 | L66 | Rate-limit on failed attestations | F | IMPLEMENTED | server/reference.py FailedAttestationLimiter (5 failures/hour sliding window); unit tests PASS 2026-11-23. In-memory — a production server needs real storage. |
 | L67 | Remote kill-switch (revoke a build) | F | IMPLEMENTED | server/reference.py revoke_build()/is_build_revoked(); unit tests PASS 2026-11-23. Reference only. |
 | L68 | Anomaly scoring (env findings → score) | F | IMPLEMENTED | server/reference.py score_findings() (0-100, clean/suspicious/blocked bands); unit tests PASS 2026-11-23. Reference only. |
-| L69 | Audit export (tripwire events) | F | IMPLEMENTED | server/reference.py export_events()/parse_export() (JSONL, antirea-audit/v1); unit tests PASS 2026-11-23. Reference only. |
+| L69 | Audit export (tripwire events) | F | IMPLEMENTED | server/reference.py export_events()/parse_export() (JSONL, appcore-audit/v1); unit tests PASS 2026-11-23. Reference only. |
 | L70 | Key rotation via server | F | IMPLEMENTED | server/reference.py rotate_keys()/old_key_still_valid() (7-day grace); unit tests PASS 2026-11-23. Reference only. |
 
 ## F. Traps / deception (L71–L85) — defensive only
@@ -134,16 +136,16 @@ one sensitive action in the app. See docs/TRAPS.md.
 | L73 | Fake keys (plausible key material) | J,A,F | IMPLEMENTED | transformer/smali.py, docs/TRAPS.md |
 | L74 | Decoy API (fake methods returning fake data) | J,G,F | IMPLEMENTED | transformer/smali.py (decoy classes) |
 | L75 | Maze classes (analysis-time sink) | J,G | IMPLEMENTED | transformer/smali.py |
-| L76 | Fake login flow (decoy auth that always flags) | F | IMPLEMENTED | transformer/traps.py fake_login_flow() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23. |
-| L77 | Fake crash (decoy crash log with marker) | F | IMPLEMENTED | transformer/traps.py fake_crash() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23. A string only, never a real crash. |
-| L78 | Slow maze (decoy with sleeps) | F | IMPLEMENTED | transformer/traps.py slow_maze() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23. Only runs if an analyst invokes the decoy. |
-| L79 | Fake update prompt (decoy) | F | IMPLEMENTED | transformer/traps.py fake_update_prompt() + anti-rea.py protect plants the decoy XML; tests PASS 2026-11-23. |
-| L80 | Fake config file (decoy JSON) | A,S | IMPLEMENTED | transformer/traps.py fake_config_file() + anti-rea.py protect plants the decoy JSON; tests PASS 2026-11-23. |
-| L81 | Fake native lib (decoy .so) | G | IMPLEMENTED | transformer/traps.py fake_native_lib() + anti-rea.py protect plants it under assets/ (NOT lib/); tests PASS 2026-11-23. Header-only ELF, NOT loadable — a placeholder only. |
-| L82 | Fake stack traces | G | IMPLEMENTED | transformer/traps.py fake_stack_traces() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23. |
-| L83 | Fake error messages with markers | F | IMPLEMENTED | transformer/traps.py fake_error_messages() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23. |
-| L84 | Honeypot admin panel (decoy) | F | IMPLEMENTED | transformer/traps.py honeypot_admin_panel() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23. |
-| L85 | Trap chaining (one trap leads to a second trap) | F | IMPLEMENTED | transformer/traps.py chain_traps() + anti-rea.py protect records the chain in REA-IR; tests PASS 2026-11-23. |
+| L76 | Fake login flow (decoy auth that always flags) | F | IMPLEMENTED | transformer/traps.py fake_login_flow() + anti-rea.py protect plants it as smali/com/appcore/auth/LoginManager.smali; tests PASS 2026-11-23. |
+| L77 | Fake crash (decoy crash log with marker) | F | IMPLEMENTED | transformer/traps.py fake_crash() + anti-rea.py protect plants it as assets/crash-report.txt; tests PASS 2026-11-23. A string only, never a real crash. |
+| L78 | Slow maze (decoy with sleeps) | F | IMPLEMENTED | transformer/traps.py slow_maze() + anti-rea.py protect plants it as smali/com/appcore/sync/RetryWorker.smali; tests PASS 2026-11-23. Only runs if an analyst invokes the decoy. |
+| L79 | Fake update prompt (decoy) | F | IMPLEMENTED | transformer/traps.py fake_update_prompt() + anti-rea.py protect plants it as res/values/update.xml; tests PASS 2026-11-23. |
+| L80 | Fake config file (decoy JSON) | A,S | IMPLEMENTED | transformer/traps.py fake_config_file() + anti-rea.py protect plants it as assets/config.json; tests PASS 2026-11-23. |
+| L81 | Fake native lib (decoy .so) | G | IMPLEMENTED | transformer/traps.py fake_native_lib() + anti-rea.py protect plants it as assets/libconfig.so (NOT lib/); tests PASS 2026-11-23. Header-only ELF, NOT loadable — a placeholder only. |
+| L82 | Fake stack traces | G | IMPLEMENTED | transformer/traps.py fake_stack_traces() + anti-rea.py protect plants it as assets/stacktrace.txt; tests PASS 2026-11-23. |
+| L83 | Fake error messages with markers | F | IMPLEMENTED | transformer/traps.py fake_error_messages() + anti-rea.py protect plants it as assets/error-log.txt; tests PASS 2026-11-23. |
+| L84 | Honeypot admin panel (decoy) | F | IMPLEMENTED | transformer/traps.py honeypot_admin_panel() + anti-rea.py protect plants it as smali/com/appcore/admin/AdminPanel.smali; tests PASS 2026-11-23. |
+| L85 | Trap chaining (one trap leads to a second trap) | F | IMPLEMENTED | transformer/traps.py chain_traps() + anti-rea.py protect records the chain + planted paths (traps.files) in REA-IR; tests PASS 2026-11-23. |
 
 ## G. Verification / operations (L86–L100)
 
@@ -195,7 +197,7 @@ private key). Expected fingerprint stored only as an encrypted blob.
 
 ## Count
 
-- IMPLEMENTED (claimed): 99 — L01, L02, L03, L04, L05, L06, L07, L08, L09, L10, L11, L12, L13, L14, L16, L17, L18, L19, L20, L21, L22, L23, L24, L25, L26, L27, L28, L29, L30, L31, L32, L33, L34, L35, L36, L37, L38, L39, L40, L41, L42, L43, L44, L45, L46, L47, L48, L49, L50, L51, L52, L53, L54, L55, L56, L57, L58, L59, L61, L62, L63, L64, L65, L66, L67, L68, L69, L70, L71, L72, L73, L74, L75, L76, L77, L78, L79, L80, L81, L82, L83, L84, L85, L86, L87, L88, L89, L90, L92, L93, L94, L95, L96, L97, L99, L100, L101, L102, L103.
-- PARTIAL: 4 (L15, L60, L91, L98)
+- IMPLEMENTED (claimed): 97 — L01, L02, L03, L04, L05, L06, L07, L08, L09, L10, L11, L12, L13, L14, L18, L19, L20, L21, L22, L23, L24, L25, L26, L27, L28, L29, L30, L31, L32, L33, L34, L35, L36, L37, L38, L39, L40, L41, L42, L43, L44, L45, L46, L47, L48, L49, L50, L51, L52, L53, L54, L55, L56, L57, L58, L59, L61, L62, L63, L64, L65, L66, L67, L68, L69, L70, L71, L72, L73, L74, L75, L76, L77, L78, L79, L80, L81, L82, L83, L84, L85, L86, L87, L88, L89, L90, L92, L93, L94, L95, L96, L97, L99, L100, L101, L102, L103.
+- PARTIAL: 6 (L15, L16, L17, L60, L91, L98)
 - PLANNED: 0 — every slot is now built, partially proven, or (L60) built with device proof still pending. No slot is unbuilt.
 - The verification report is authoritative: any claimed layer it cannot evidence moves to PLANNED here.

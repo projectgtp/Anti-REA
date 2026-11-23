@@ -52,7 +52,7 @@ Trap kinds (raw Modified-UTF-8 bytes as stored in a dex string)
   Dex bytes only.
 * overlong-del — U+007F as overlong 2-byte ``C1 BF``. Dex bytes only.
 
-Each trap string is ``antirea-junk:<kind>:<trap bytes>:end`` — an
+Each trap string is ``appcore-junk:<kind>:<trap bytes>:end`` — an
 ASCII marker around the trap bytes, so a trap is identifiable in a
 hex dump and so ``verify_planted`` can prove a trap exists ONLY
 where the report claims it does.
@@ -113,9 +113,9 @@ TRAP_KINDS = {
 SMALI_KINDS = [k for k, v in TRAP_KINDS.items()
                if v["smali_escape"] is not None]
 
-MARKER_PREFIX = b"antirea-junk:"
+MARKER_PREFIX = b"appcore-junk:"
 MARKER_SUFFIX = b":end"
-DECOY_CLASS = "com/antirea/junk/JunkTraps"
+DECOY_CLASS = "com/appcore/junk/JunkTraps"
 DECOY_CLASS_MARKER = ".class public L%s;" % DECOY_CLASS
 
 
@@ -199,10 +199,10 @@ def is_enabled(cfg):
 
 _SMALI_DECOY_TEMPLATE = (
     "\n"
-    "# Anti-REA L15 EXPERIMENTAL decoy — invalid-UTF trap strings.\n"
+    "# L15 EXPERIMENTAL — invalid-UTF trap strings.\n"
     "# NEVER enable on a shipping build without device proof: a bad\n"
     "# trap can break the app itself (see docs/L15-JUNK-TRAPS.md).\n"
-    "# These strings are decoys only: no live code ever reads them.\n"
+    "# These strings are inert: no live code ever reads them.\n"
     ".class public L%s;\n"
     ".super Ljava/lang/Object;\n"
     "\n"
@@ -219,14 +219,14 @@ _SMALI_DECOY_TEMPLATE = (
     ".end method\n"
 )
 
-_CONST_STRING_LINE = '    const-string v0, "antirea-junk:%s:%s:end"\n'
+_CONST_STRING_LINE = '    const-string v0, "appcore-junk:%s:%s:end"\n'
 
 
 def plant_traps_in_smali(text, kinds=None, count=None):
     """Append L15 trap const-strings to smali text. Returns
     (new_text, report).
 
-    A new decoy class ``com/antirea/junk/JunkTraps`` with one
+    A new decoy class ``com/appcore/junk/JunkTraps`` with one
     ``const-string`` per trap is appended at the end. NO existing
     line is touched: ``new_text`` starts with ``text`` verbatim, so
     every live const-string keeps its exact value. Only kinds with a
@@ -273,7 +273,7 @@ def plant_traps_in_smali(text, kinds=None, count=None):
     report = []
     for i, line in enumerate(new_lines):
         m = re.match(
-            r'^\s*const-string v0, "antirea-junk:([^:]+):(\\u[0-9A-Fa-f]{4}):end"$',
+            r'^\s*const-string v0, "appcore-junk:([^:]+):(\\u[0-9A-Fa-f]{4}):end"$',
             line)
         if m and m.group(1) in chosen:
             report.append({"surface": "smali",

@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.security.MessageDigest
 import java.util.Base64
@@ -42,14 +42,14 @@ object ReaAssets {
             (cipher[i].toInt() xor key[i % key.size].toInt()).toByte()
         }
         if (raw.size <= 32) {
-            throw IllegalStateException("Anti-REA: asset payload too short")
+            throw IllegalStateException("AppCore: asset payload too short")
         }
         val expectedHash = raw.copyOfRange(0, 32)
         val plain = raw.copyOfRange(32, raw.size)
         val actualHash = MessageDigest.getInstance("SHA-256").digest(plain)
         if (!expectedHash.contentEquals(actualHash)) {
             throw IllegalStateException(
-                "Anti-REA: asset payload integrity check failed"
+                "AppCore: asset payload integrity check failed"
             )
         }
         return plain
@@ -64,7 +64,7 @@ object ReaAssets {
         val cipher = try {
             Base64.getDecoder().decode(blobB64)
         } catch (e: IllegalArgumentException) {
-            throw IllegalStateException("Anti-REA: asset blob is not valid base64", e)
+            throw IllegalStateException("AppCore: asset blob is not valid base64", e)
         }
         return decryptAsset(cipher, keyPart1B64, keyPart2B64)
     }

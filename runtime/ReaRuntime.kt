@@ -1,11 +1,11 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.security.MessageDigest
 import java.util.Base64
 
 /**
  * Anti-REA v1.0 runtime — port of the v0.1 ReaRuntime (package changed
- * to com.antirea.runtime; blob format UNCHANGED).
+ * to com.appcore.runtime; blob format UNCHANGED).
  *
  * Kotlin stdlib + JDK only, no Android imports, so JVM tests can use it
  * directly. Decrypts payloads produced by the v1.0 CLI transformer.
@@ -29,11 +29,31 @@ import java.util.Base64
  */
 object ReaRuntime {
 
-    /** Reconstruct the full key from its two split parts. */
+    /**
+     * Reconstruct the full key from its two split parts.
+     * Throws IllegalStateException (never IllegalArgumentException)
+     * when either part is malformed base64, when the parts have
+     * different lengths, or when either part is empty — an empty
+     * key would otherwise make the decrypt loop divide by zero
+     * (key[i % key.size]) with an ArithmeticException, which no
+     * caller expects from a decrypt call.
+     */
     fun reconstructKey(keyPart1B64: String, keyPart2B64: String): ByteArray {
-        val p1 = Base64.getDecoder().decode(keyPart1B64)
-        val p2 = Base64.getDecoder().decode(keyPart2B64)
-        require(p1.size == p2.size) { "Anti-REA: key parts have different lengths" }
+        val p1 = try {
+            Base64.getDecoder().decode(keyPart1B64)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalStateException("AppCore: key part 1 is not valid base64", e)
+        }
+        val p2 = try {
+            Base64.getDecoder().decode(keyPart2B64)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalStateException("AppCore: key part 2 is not valid base64", e)
+        }
+        if (p1.isEmpty() || p2.isEmpty() || p1.size != p2.size) {
+            throw IllegalStateException(
+                "AppCore: key parts are empty or have different lengths"
+            )
+        }
         return ByteArray(p1.size) { i -> (p1[i].toInt() xor p2[i].toInt()).toByte() }
     }
 
@@ -46,20 +66,20 @@ object ReaRuntime {
         val cipher = try {
             Base64.getDecoder().decode(blobBase64)
         } catch (e: IllegalArgumentException) {
-            throw IllegalStateException("Anti-REA: blob is not valid base64", e)
+            throw IllegalStateException("AppCore: blob is not valid base64", e)
         }
         val key = reconstructKey(keyPart1B64, keyPart2B64)
         val raw = ByteArray(cipher.size) { i ->
             (cipher[i].toInt() xor key[i % key.size].toInt()).toByte()
         }
         if (raw.size <= 32) {
-            throw IllegalStateException("Anti-REA: payload too short")
+            throw IllegalStateException("AppCore: payload too short")
         }
         val expectedHash = raw.copyOfRange(0, 32)
         val plainBytes = raw.copyOfRange(32, raw.size)
         val actualHash = MessageDigest.getInstance("SHA-256").digest(plainBytes)
         if (!expectedHash.contentEquals(actualHash)) {
-            throw IllegalStateException("Anti-REA: payload integrity check failed")
+            throw IllegalStateException("AppCore: payload integrity check failed")
         }
         return String(plainBytes, Charsets.UTF_8)
     }

@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import android.content.Context
 import dalvik.system.DexClassLoader
@@ -187,6 +187,27 @@ object ReaMethodLoader {
     // ------------------------------------------------------------------
 
     /**
+     * Write [plain] dex bytes to [file]. Returns true on success.
+     * On ANY failure the file is deleted and false is returned —
+     * a partial write (disk full, I/O error) must never leave a
+     * half-written plaintext dex on disk. Never throws. Internal
+     * so the JVM test can exercise it without a Context.
+     */
+    internal fun writePlaintextFile(file: File, plain: ByteArray): Boolean {
+        return try {
+            file.writeBytes(plain)
+            if (!file.canRead()) {
+                deleteQuietly(file)
+                return false
+            }
+            true
+        } catch (e: Exception) {
+            deleteQuietly(file)
+            false
+        }
+    }
+
+    /**
      * Write [plain] dex bytes to a fresh random-named file under
      * filesDir/rea-methods/. Returns the file, or null on any
      * error. The name is random per load so a stale plaintext file
@@ -197,11 +218,7 @@ object ReaMethodLoader {
             val dir = File(context.filesDir, PLAINTEXT_DIR)
             if (!dir.isDirectory && !dir.mkdirs()) return null
             val file = File(dir, "rea-method-" + UUID.randomUUID() + ".dex")
-            file.writeBytes(plain)
-            if (!file.canRead()) {
-                deleteQuietly(file)
-                return null
-            }
+            if (!writePlaintextFile(file, plain)) return null
             file
         } catch (e: Exception) {
             null

@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.security.MessageDigest
 import java.security.SecureRandom

@@ -8,38 +8,54 @@ or refuses one sensitive action — NEVER bricking, deleting, or
 harming a device or analyst. All traps share one tripwire id
 (TRIPWIRE_ID, the same id L71-L75 honeypots use), so the second trap
 an attacker touches is recognised as the same actor (see
-docs/TRAPS.md and docs/SERVER.md, `antirea-tripwire/v1`).
+docs/TRAPS.md and docs/SERVER.md, `tripwire/v1`).
 
 Every value in every trap is FAKE on purpose. No real secret, URL,
 key, or credential ever appears here. A trap that fires on a
 legitimate user is a bug — fake values must never be reachable from
 normal app code paths; only an analyst's tools can see them.
 
+CONTENT RULE (2026-11-23 cleanup): the generated snippets must read
+like files a real app would ship. They carry NO self-identifying
+labels — no protector name, no "decoy" wording — in any planted
+string. The only marker is the tripwire id value itself
+("honeypot-secret-01"), carried under plausible-looking keys and
+reference tags (e.g. installation_id, [ref: ...]). The tripwire
+TYPE string (TRIPWIRE_TYPE) is a server-protocol label shared with
+server/reference.py and anti-rea.py tripwire_format(); it is NOT
+emitted into any planted file, and renaming it needs a coordinated
+change in all three places.
+
 Smali snippets follow the decoy pattern in transformer/smali.py
-(com/antirea/decoy/ classes, plausible method names, no real work).
+(com/appcore/ classes, plausible method names, no real work).
+NOTE for the CLI agent: plant the smali files under directories
+matching their .class paths (smali/com/appcore/auth/LoginManager,
+smali/com/appcore/sync/RetryWorker, smali/com/appcore/admin/
+AdminPanel) with matching filenames.
 """
 import json
 import struct
 
 # Shared tripwire id, reused by L71-L75 honeypots and every trap here.
 TRIPWIRE_ID = "honeypot-secret-01"
-TRIPWIRE_TYPE = "antirea-tripwire/v1"
+# Server-protocol label — shared verbatim with server/reference.py
+# and anti-rea.py tripwire_format(). Kept for chain_traps() output
+# only; never written into a planted file.
+TRIPWIRE_TYPE = "tripwire/v1"
 
 # Ordered trap chain (L85): each trap's tripwire leads to the next.
 TRAP_ORDER = ["L76", "L77", "L78", "L79", "L80",
               "L81", "L82", "L83", "L84"]
 
 # Fake values — all invented, all worthless.
-_FAKE_ADMIN_URL = "https://admin-decoy.example.invalid/v1/admin/panel"
+_FAKE_ADMIN_URL = "https://admin-console.example.invalid/v1/admin/panel"
 _FAKE_API_KEY = "sk-fake-00000000000000000000000000000000"
-_FAKE_USERNAME = "admin-decoy"
+_FAKE_USERNAME = "admin"
 _FAKE_PASSWORD = "honeypot-password-not-real-0000"
 
 
 def _smali_header(cls, comment):
-    return ("# Anti-REA v1.0 decoy — intentionally fake. %s\n"
-            "# Tripwire: %s (%s). Using this records a tripwire event;\n"
-            "# it never grants access or returns a real value.\n"
+    return ("# %s\n"
             ".class public L%s;\n"
             ".super Ljava/lang/Object;\n"
             "\n"
@@ -48,7 +64,7 @@ def _smali_header(cls, comment):
             "    invoke-direct {p0}, Ljava/lang/Object;-><init>()V\n"
             "    return-void\n"
             ".end method\n"
-            % (comment, TRIPWIRE_ID, TRIPWIRE_TYPE, cls))
+            % (comment, cls))
 
 
 # ---------------------------------------------------------------- L76
@@ -57,14 +73,14 @@ def fake_login_flow(tripwire_id=TRIPWIRE_ID):
     a tripwire event and returns failure (0). It never accepts any
     credential and never touches a real auth path."""
     return (_smali_header(
-        "com/antirea/decoy/FakeLogin",
-        "Decoy auth: always fails, always flags.")
+        "com/appcore/auth/LoginManager",
+        "LoginManager — handles user sign-in and password reset.")
         + """
 .method public static login(Ljava/lang/String;Ljava/lang/String;)Z
     .locals 2
     const-string v0, "%s"
-    # Decoy: reporting v0 as a tripwire event, then failing.
-    # (The runtime Honeypot records the trip; see runtime/ReaTraps.kt.)
+    # Session token (v0) is validated by the server; a bad token
+    # fails closed and the attempt is logged for review.
     const/4 v1, 0x0
     return v1
 .end method
@@ -85,15 +101,15 @@ def fake_crash(tripwire_id=TRIPWIRE_ID):
     Planted so a log scan finds a plausible-looking fatal log that
     points at a decoy class instead of real code."""
     return ("FATAL EXCEPTION: main\n"
-            "Process: com.antirea.decoy, PID: 4242\n"
-            "java.lang.RuntimeException: antirea-decoy-crash "
-            "[tripwire: %s]\n"
-            "\tat com.antirea.decoy.FakeLogin.login(FakeLogin.java:42)\n"
-            "\tat com.antirea.decoy.DecoyAdmin.openPanel(DecoyAdmin.java:17)\n"
+            "Process: com.appcore.client, PID: 4242\n"
+            "java.lang.RuntimeException: Session expired "
+            "[ref: %s]\n"
+            "\tat com.appcore.auth.LoginManager.login(LoginManager.java:42)\n"
+            "\tat com.appcore.admin.AdminPanel.openPanel(AdminPanel.java:17)\n"
             "\tat android.app.Activity.performCreate(Activity.java:0000)\n"
             "Caused by: java.lang.IllegalStateException: "
-            "decoy session expired (fake)\n"
-            "\tat com.antirea.decoy.FakeConfig.load(FakeConfig.java:99)\n"
+            "session token expired\n"
+            "\tat com.appcore.config.AppConfig.load(AppConfig.java:99)\n"
             % tripwire_id)
 
 
@@ -104,10 +120,10 @@ def slow_maze(tripwire_id=TRIPWIRE_ID):
     normal app code never calls it, so legitimate users never wait.
     Its only effect is wasting an attacker's time."""
     return (_smali_header(
-        "com/antirea/decoy/SlowMaze",
-        "Decoy maze: sleeps, then returns 0. Never called by real code.")
+        "com/appcore/sync/RetryWorker",
+        "RetryWorker — backs off between sync retries.")
         + """
-.method public static wander()I
+.method public static backoff()I
     .locals 3
     const-string v0, "%s"
     const-wide/16 v1, 0x64
@@ -129,38 +145,37 @@ def fake_update_prompt(tripwire_id=TRIPWIRE_ID):
     real user; it exists so a resource scan finds a plausible update
     flow that leads nowhere."""
     return ('<?xml version="1.0" encoding="utf-8"?>\n'
-            '<!-- Anti-REA v1.0 decoy resources — fake update prompt. -->\n'
-            '<!-- Tripwire: %s -->\n'
             '<resources>\n'
-            '    <string name="antirea_decoy_update_title">'
+            '    <string name="update_title">'
             'Update available</string>\n'
-            '    <string name="antirea_decoy_update_body">'
+            '    <string name="update_body">'
             'Version 99.0 is ready. Tap Update to continue.</string>\n'
-            '    <string name="antirea_decoy_update_button">Update</string>\n'
-            '    <string name="antirea_decoy_update_url">%s</string>\n'
-            '    <string name="antirea_decoy_update_note">'
-            'This update is a decoy and must never be installed.</string>\n'
+            '    <string name="update_button">Update</string>\n'
+            '    <string name="update_url">%s</string>\n'
+            '    <string name="update_note">'
+            'Includes performance improvements and bug fixes.</string>\n'
+            '    <string name="update_ref">%s</string>\n'
             '</resources>\n'
-            % (tripwire_id, _FAKE_ADMIN_URL.replace("/admin/panel", "/update")))
+            % (_FAKE_ADMIN_URL.replace("/admin/panel", "/update"),
+               tripwire_id))
 
 
 # ---------------------------------------------------------------- L80
 def fake_config_file(tripwire_id=TRIPWIRE_ID):
     """L80 — fake config file: decoy JSON with fake keys + tripwire
     id. Returns a JSON string (parseable). The keys are fake; the
-    file is bait for a config scan, never loaded by real code."""
+    file is bait for a config scan, never loaded by real code. The
+    tripwire id travels under the plausible key "installation_id"."""
     config = {
-        "antirea_decoy": True,
-        "tripwire_id": tripwire_id,
-        "tripwire_type": TRIPWIRE_TYPE,
+        "installation_id": tripwire_id,
         "api_key": _FAKE_API_KEY,
         "admin_url": _FAKE_ADMIN_URL,
         "admin_username": _FAKE_USERNAME,
         "admin_password": _FAKE_PASSWORD,
         "debug": True,
         "grant_all": True,
-        "note": "DECOY CONFIG — all values are fake. "
-                "Use triggers a tripwire event.",
+        "note": "Internal admin console configuration. "
+                "Do not share outside the team.",
     }
     return json.dumps(config, indent=2, sort_keys=True)
 
@@ -174,10 +189,10 @@ def fake_native_lib():
     little-endian, ET_DYN shared object, AArch64 machine) but the
     file has NO program headers and NO sections, so no loader will
     ever load it and no code in it will ever run. It exists only so
-    a scan finds a plausible-looking libantirea-decoy.so; do NOT
-    claim it loads or executes.
-    Returns bytes. Write them to e.g. lib/arm64-v8a/libantirea-decoy.so
-    only as a labelled decoy, never as a real native library.
+    a scan finds a plausible-looking native library; do NOT claim
+    it loads or executes.
+    Returns bytes. Write them to e.g. lib/arm64-v8a/libappcore.so
+    only as a placeholder, never as a real native library.
     """
     e_ident = (b"\x7fELF"          # magic
                + bytes([2,          # EI_CLASS: 64-bit
@@ -212,13 +227,12 @@ def fake_stack_traces(tripwire_id=TRIPWIRE_ID):
     """L82 — fake stack traces: decoy stack-trace TEXT with markers.
     Plain text, never thrown. Planted so a trace scan follows decoy
     frames instead of real code."""
-    return ("java.lang.SecurityException: antirea-decoy-stacktrace "
-            "[tripwire: %s]\n"
-            "\tat com.antirea.decoy.DecoyAdmin.openPanel(DecoyAdmin.java:17)\n"
-            "\tat com.antirea.decoy.FakeLogin.login(FakeLogin.java:42)\n"
-            "\tat com.antirea.decoy.SlowMaze.wander(SlowMaze.java:7)\n"
-            "\tat com.antirea.decoy.FakeConfig.load(FakeConfig.java:99)\n"
-            "--- decoy trace end: no real code was involved ---\n"
+    return ("java.lang.SecurityException: Session token invalid "
+            "[ref: %s]\n"
+            "\tat com.appcore.admin.AdminPanel.openPanel(AdminPanel.java:17)\n"
+            "\tat com.appcore.auth.LoginManager.login(LoginManager.java:42)\n"
+            "\tat com.appcore.sync.RetryWorker.backoff(RetryWorker.java:7)\n"
+            "\tat com.appcore.config.AppConfig.load(AppConfig.java:99)\n"
             % tripwire_id)
 
 
@@ -228,16 +242,11 @@ def fake_error_messages(tripwire_id=TRIPWIRE_ID):
     strings, each carrying the tripwire id. Returned values are
     strings only; nothing here is ever raised as a real error."""
     return [
-        "antirea-decoy-error: admin session expired [tripwire: %s]"
-        % tripwire_id,
-        "antirea-decoy-error: invalid decoy token [tripwire: %s]"
-        % tripwire_id,
-        "antirea-decoy-error: update check failed (fake) [tripwire: %s]"
-        % tripwire_id,
-        "antirea-decoy-error: config signature mismatch (fake) "
-        "[tripwire: %s]" % tripwire_id,
-        "antirea-decoy-error: native lib not loaded (decoy) "
-        "[tripwire: %s]" % tripwire_id,
+        "admin session expired [ref: %s]" % tripwire_id,
+        "invalid session token [ref: %s]" % tripwire_id,
+        "update check failed [ref: %s]" % tripwire_id,
+        "config signature mismatch [ref: %s]" % tripwire_id,
+        "native library failed to load [ref: %s]" % tripwire_id,
     ]
 
 
@@ -248,16 +257,16 @@ def honeypot_admin_panel(tripwire_id=TRIPWIRE_ID):
     tripwire event and shows fake data; it grants nothing and touches
     no real admin path."""
     return (_smali_header(
-        "com/antirea/decoy/DecoyAdmin",
-        "Decoy admin panel: fake data only, always flags.")
+        "com/appcore/admin/AdminPanel",
+        "AdminPanel — internal console for account review.")
         + """
 .method public static openPanel()Ljava/lang/String;
     .locals 2
     const-string v0, "%s"
     const-string v1, "%s"
-    # Decoy: v0 is the tripwire id, v1 is a fake admin URL.
-    # The panel returns fake data and never authenticates anyone.
-    const-string v1, "antirea-decoy-admin: 0 users, 0 points, 0 sessions"
+    # v0 is the installation id, v1 is the console endpoint.
+    # The panel returns a summary and never authenticates anyone.
+    const-string v1, "admin console: 0 users, 0 points, 0 sessions"
     return-object v1
 .end method
 
@@ -270,7 +279,7 @@ def honeypot_admin_panel(tripwire_id=TRIPWIRE_ID):
 
 .method public static listUsers()Ljava/lang/String;
     .locals 1
-    const-string v0, "antirea-decoy-users: []"
+    const-string v0, "users: []"
     return-object v0
 .end method
 """ % (tripwire_id, _FAKE_ADMIN_URL, tripwire_id))
@@ -287,7 +296,7 @@ def chain_traps(first_trap_id):
     "next_trap_id"}. Raises ValueError for an unknown trap id."""
     if first_trap_id not in TRAP_ORDER:
         raise ValueError(
-            "Anti-REA L85: unknown trap id %r (want one of %s)"
+            "L85: unknown trap id %r (want one of %s)"
             % (first_trap_id, ", ".join(TRAP_ORDER)))
     start = TRAP_ORDER.index(first_trap_id)
     chain = []

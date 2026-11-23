@@ -29,6 +29,7 @@ Python stdlib only.
 """
 import argparse
 import hashlib
+import re
 import struct
 import sys
 import zipfile
@@ -67,22 +68,36 @@ def main():
     if not apk.is_file():
         print(f"ERROR: APK not found: {apk}", file=sys.stderr)
         sys.exit(2)
-    prefix = args.blob_b64.encode("ascii")
+    try:
+        prefix = args.blob_b64.encode("ascii")
+    except UnicodeEncodeError:
+        print("ERROR: --blob-b64 must be ASCII base64 (got non-ASCII "
+              "characters)", file=sys.stderr)
+        sys.exit(2)
     if len(prefix) < 4:
         print("ERROR: --blob-b64 must be at least 4 chars", file=sys.stderr)
         sys.exit(2)
 
-    with zipfile.ZipFile(apk) as z:
-        names = z.namelist()
-        if "classes.dex" not in names:
-            print("ERROR: APK has no classes.dex", file=sys.stderr)
-            sys.exit(2)
-        dex = bytearray(z.read("classes.dex"))
-        entries = [(info, z.read(info.filename)) for info in z.infolist()]
+    try:
+        with zipfile.ZipFile(apk) as z:
+            names = z.namelist()
+            dex_name = next((n for n in sorted(names)
+                             if re.fullmatch(r"classes\d*\.dex", n)), None)
+            if dex_name is None:
+                print("ERROR: APK has no classes*.dex", file=sys.stderr)
+                sys.exit(2)
+            dex = bytearray(z.read(dex_name))
+            entries = [(info, z.read(info.filename)) for info in z.infolist()]
+    except zipfile.BadZipFile:
+        print(f"ERROR: not a valid ZIP/APK: {apk}", file=sys.stderr)
+        sys.exit(2)
+    except OSError as e:
+        print(f"ERROR: cannot read APK {apk}: {e}", file=sys.stderr)
+        sys.exit(2)
 
     offset = dex.find(prefix)
     if offset < 0:
-        print(f"ERROR: blob prefix {args.blob_b64!r} not found in classes.dex",
+        print(f"ERROR: blob prefix {args.blob_b64!r} not found in {dex_name}",
               file=sys.stderr)
         sys.exit(1)
     orig_char = chr(dex[offset])
@@ -100,9 +115,10 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
         for info, data in entries:
-            data = bytes(dex) if info.filename == "classes.dex" else data
+            data = bytes(dex) if info.filename == dex_name else data
             zout.writestr(info, data)
 
+    print(f"dex file flipped: {dex_name}")
     print(f"dex offset flipped: {offset}")
     print(f"byte flipped: {orig_char!r} -> {flipped_char!r} "
           f"(blob prefix {args.blob_b64!r})")

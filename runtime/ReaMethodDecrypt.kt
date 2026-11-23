@@ -1,4 +1,4 @@
-package com.antirea.runtime
+package com.appcore.runtime
 
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -204,9 +204,30 @@ object ReaMethodDecrypt {
         return open(blobBase64, key)
     }
 
-    /** Open a [SealedMethod]. Null (never throws) on any failure. */
+    /**
+     * Open a [SealedMethod]. Null (never throws) on any failure.
+     * Verifies the stored hashes, not just the embedded hash
+     * prefix: the blob must match its recorded [SealedMethod.blobSha256Hex]
+     * and the decrypted payload must match its recorded
+     * [SealedMethod.plainSha256Hex] — a blob whose stored hashes
+     * were swapped or forged refuses even if its embedded prefix
+     * somehow still checks out. Every legitimate producer
+     * (seal(), tools/make_method_blob.py, transformer/crypto.py)
+     * fills both hashes, so a blank or mismatched hash is a
+     * refusal, never a pass.
+     */
     fun open(sealed: SealedMethod): ByteArray? {
-        return open(sealed.blobBase64, sealed.keyPart1B64, sealed.keyPart2B64)
+        return try {
+            if (!verifyBlob(sealed.blobBase64, sealed.blobSha256Hex)) return null
+            val plain = open(sealed.blobBase64, sealed.keyPart1B64, sealed.keyPart2B64)
+                ?: return null
+            if (sealed.plainSha256Hex.isBlank() ||
+                sha256Hex(plain) != sealed.plainSha256Hex.lowercase()
+            ) return null
+            plain
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**
@@ -226,7 +247,12 @@ object ReaMethodDecrypt {
         return try {
             if (newKey.size != KEY_LEN) return null
             val plain = open(blobBase64, oldKey) ?: return null
-            seal(plain, newKey)
+            try {
+                seal(plain, newKey)
+            } finally {
+                // The plaintext must not linger in memory after rotation.
+                plain.fill(0)
+            }
         } catch (e: Exception) {
             null
         }
@@ -237,7 +263,11 @@ object ReaMethodDecrypt {
         return try {
             if (newKey.size != KEY_LEN) return null
             val plain = open(sealed) ?: return null
-            seal(plain, newKey)
+            try {
+                seal(plain, newKey)
+            } finally {
+                plain.fill(0)
+            }
         } catch (e: Exception) {
             null
         }

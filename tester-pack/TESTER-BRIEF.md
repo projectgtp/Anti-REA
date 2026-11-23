@@ -5,10 +5,10 @@ Test them like a real attacker. No help from us during the test.
 
 ## Files in this pack
 
-1. `bridge-2.14.0-final6-protected.apk` — Bridge 2.14.0, protected by Anti-REA v1.0 (final build, 99 layers)
-   - Size 4,865,135 bytes, SHA-256 `e54bf39f9b0ac4883fe8f88d5b46f86d6b5d46926874688e85c8164dd0c40483`
-2. `testapp-protected-final6.apk` — tiny generic test app, protected by Anti-REA v1.0 (final build, 99 layers)
-   - Size 767,070 bytes, SHA-256 `02649b3025cd5e5cb05a1006cca677c3b8ed82a2eef538aeb67bf090209bbaa3`
+1. `bridge-2.14.0-audit-protected.apk` — Bridge 2.14.0, protected by Anti-REA v1.0 (audit build, 97 implemented layers)
+   - Size 4,869,130 bytes, SHA-256 `d4f99d524d2a29a788422d459218e2b67638691e895b7ba4bb923ca15a87fd44`
+2. `testapp-audit-protected.apk` — tiny generic test app, protected by Anti-REA v1.0 (audit build, 97 implemented layers)
+   - Size 775,164 bytes, SHA-256 `0b5e82c61c58dde682ab497b3888d7d020ff275a06162eede61b52ef302f68dc`
 3. This brief. Nothing else.
 
 Both APKs use a test keystore. They will NOT install over the real Bridge app.
@@ -16,6 +16,7 @@ Install on a test phone/emulator only if you want to run them. Static test alone
 
 ## New in this build (since the first pack)
 
+- **Audit build:** decoy files now have realistic names (config.json, crash-report.txt, error-log.txt, stacktrace.txt, libconfig.so) instead of fake-* names; listing a full URL now also hides its bare host and scheme variants.
 - **Mod-app block:** the app refuses its secret action while an APK-editor app is present (MT Manager, Apktool M, NP Manager, APK Editor, Lucky Patcher, and 8 more). Try installing one of those and running the app.
 - **GameGuardian / memory editing:** the app detects tracing, watches its own memory, and hides numbers in RAM instead of storing them plain. Try GameGuardian (root) — scan for a value, change it, see if the app notices or if the changed value does anything.
 - **Rename / repack:** the app checks its own package name and signing certificate. Try renaming the package or re-signing the APK and running it.

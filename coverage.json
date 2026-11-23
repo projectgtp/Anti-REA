@@ -1,14 +1,13 @@
 {
   "tool": "anti-rea layer_coverage (L93)",
-  "generated_utc": "2026-11-23T07:55:58.240646+00:00",
+  "generated_utc": "2026-11-23T10:49:56.475531+00:00",
   "total_layers": 103,
   "counts_by_status": {
-    "IMPLEMENTED": 99,
-    "PARTIAL": 3,
-    "PLANNED": 1
+    "IMPLEMENTED": 97,
+    "PARTIAL": 6
   },
-  "implemented_total": 99,
-  "implemented_with_evidence": 58,
+  "implemented_total": 97,
+  "implemented_with_evidence": 56,
   "implemented_without_evidence": [
     "L23",
     "L24",
@@ -58,6 +57,7 @@
     "TOOL-COVERAGE.md",
     "TOOL-SWEEP-REPORT.md",
     "VERIFICATION-REPORT-v1.0.md",
+    "tests/attack-bridge-final6-report.json",
     "tests/attack-bridge-full-report.json",
     "tests/attack-bridge-report.json",
     "tests/attack-selfprotect-report.json",
@@ -141,7 +141,7 @@
       "name": "Resource string sweep (res/values + manifest needles)",
       "counters": "J,A,S",
       "status": "IMPLEMENTED",
-      "where": "anti-rea.py \u2014 sweep + decoy replace + encrypt res/values strings to assets/antirea/res_strings.json (runtime/ReaResStrings.kt decrypt on demand); JVM test PASS 2026-11-23. Limit: getString() returns the placeholder; the app must call decryptResource(name) explicitly.",
+      "where": "anti-rea.py \u2014 sweep + decoy replace + encrypt res/values strings to assets/meta/res_strings.json (runtime/ReaResStrings.kt decrypt on demand); JVM test PASS 2026-11-23. Limit: getString() returns the placeholder; the app must call decryptResource(name) explicitly.",
       "code_exists": true,
       "evidence_files": [
         "TOOL-COVERAGE.md",
@@ -189,7 +189,7 @@
     },
     {
       "id": "L10",
-      "name": "Decoy-class camouflage (decoys under com/antirea/decoy/, generic getSecretNN names; NOT under the app package in v1.0)",
+      "name": "Decoy-class camouflage (decoys under com/appcore/cache/, generic getSecretNN names; NOT under the app package in v1.0)",
       "counters": "J,A,G",
       "status": "IMPLEMENTED",
       "where": "transformer/smali.py",
@@ -260,8 +260,8 @@
       "id": "L16",
       "name": "APK signature check at startup (provider)",
       "counters": "A,F",
-      "status": "IMPLEMENTED",
-      "where": "runtime/ReaIntegrity.kt, ReaGuardProvider",
+      "status": "PARTIAL",
+      "where": "runtime/ReaIntegrity.kt, ReaGuardProvider. **NOT wired as described (audit 2026-11-23): there is NO signature-check code in ReaGuardProvider or ReaIntegrity.kt \u2014 only SHA-256 helpers (verifyFileSha256 etc.), and the provider never inspects the signing certificate. The provider runs env checks (ReaEnv.checkAll), mod-block signals (L101), and a dex-hash read of assets/meta/dex.sha256 \u2014 which protect never writes (see L17). The real signing-certificate comparison lives in ReaRepack.kt (L103: verifySigningCertSha256, app-invoked, expected-hash blob made by tools/make_sig_blob.py, NOT auto-injected by the CLI). A startup signature check needs provider code that reads the cert (or L103 wired into the provider) \u2014 until then this layer checks nothing at startup.**",
       "code_exists": true,
       "evidence_files": [
         "VERIFICATION-REPORT-v1.0.md",
@@ -273,8 +273,8 @@
       "id": "L17",
       "name": "DEX SHA-256 check",
       "counters": "A,F",
-      "status": "IMPLEMENTED",
-      "where": "runtime/ReaIntegrity.kt",
+      "status": "PARTIAL",
+      "where": "runtime/ReaIntegrity.kt (verifyDexSha256 / verifyOwnApkSha256 / verifyFileSha256; unit-tested in runtime/tests/RuntimeAuditTest.kt, run by tools/run_all.py as jvm-audit). **NOT wired end to end (audit 2026-11-23): the provider's checkDexHash() reads assets/meta/dex.sha256, which `anti-rea.py protect` never writes \u2014 the dex hash is recorded only in assets/meta/build.json + REA-IR, so dexCheckPassed is always null (\"not checked\") in a protected APK. Wiring it also needs a runtime-side fix: the provider compares the expected value against the APK FILE hash (verifyFileSha256), which cannot be embedded before signing (chicken-and-egg) \u2014 it must hash the dex bytes via verifyDexSha256 instead. Note: the provider's asset readers still point at the old assets/antirea/ path until the runtime package rename (Agent C) lands; protect writes assets/meta/ from 2026-11-23. Until both halves land, no DEX hash is verified at startup.**",
       "code_exists": true,
       "evidence_files": [
         "VERIFICATION-REPORT-v1.0.md",
@@ -301,7 +301,7 @@
       "name": "Manifest hash (REA-IR manifest hash)",
       "counters": "A,F",
       "status": "IMPLEMENTED",
-      "where": "transformer, assets/antirea/manifest.json",
+      "where": "transformer, assets/meta/manifest.json",
       "code_exists": false,
       "evidence_files": [
         "VERIFICATION-REPORT-v1.0.md",
@@ -341,7 +341,7 @@
       "name": "File-hash manifest (dex + manifest + blobs)",
       "counters": "A,F",
       "status": "IMPLEMENTED",
-      "where": "anti-rea.py (assets/antirea/manifest.json)",
+      "where": "anti-rea.py (assets/meta/manifest.json)",
       "code_exists": true,
       "evidence_files": [
         "VERIFICATION-REPORT-v1.0.md",
@@ -678,7 +678,7 @@
       "name": "Decoy classes (plausible, useless)",
       "counters": "J,A,G",
       "status": "IMPLEMENTED",
-      "where": "transformer/smali.py",
+      "where": "transformer/smali.py (written under com/antirea/decoy/, renamed to com/appcore/cache/ with DecoyNN -> CacheNN by anti-rea.py _rename_protector_paths() before rebuild; 2026-11-23 decoy-filename rename)",
       "code_exists": true,
       "evidence_files": [
         "VERIFICATION-REPORT-v1.0.md",
@@ -766,9 +766,9 @@
       "id": "L60",
       "name": "Runtime code mutation (self-modifying)",
       "counters": "F",
-      "status": "PLANNED",
-      "where": "NOT SHIPPED by decision 2026-11-23 \u2014 docs/L60-WHY-NOT-SHIPPED.md: ART has no stable method layout to patch safely, decrypted code stays in RAM anyway, it would duplicate L57/L13, and Play Protect flags runtime patching as malware. Goal covered by L57, L13, L102 + server attestation.",
-      "code_exists": false,
+      "status": "PARTIAL",
+      "where": "IMPLEMENTED as opt-out core, DEFAULT ON per user order 2026-11-23: runtime/ReaMethodDecrypt.kt (seal/open/rotate, XOR + split key + SHA-256, tamper refuses) + runtime/ReaMethodLoader.kt (DexClassLoader, plaintext deleted after load, fail-closed) + tools/make_method_blob.py + config flag experimental.self_changing_code (default true; false turns it off). JVM core TEST-PASS 2026-11-23 (round-trip/tamper/wrong-key/rotate/bad-input/verify), flag tests 9 OK, blob self-test 4/4 OK, loader COMPILE-OK. Docs: docs/L60-SELF-CHANGING-CODE.md (danger warning stays: never first launch, never login/payment, only non-critical paths, only after real-device proof; Play Protect risk; decrypted code stays in RAM). Limits: Android loader compile-verified only, NEVER device-tested; stored-form rotation only \u2014 loaded code stays loaded. **NO APK WIRING (audit 2026-11-23): the flag exists and the core is tested, but `anti-rea.py protect` never calls the loader/sealer \u2014 no ReaMethodDecrypt/Loader smali exists in runtime/smali/ (build_smali.sh lists the .kt files but smali/ predates them), no config key names a method payload dex to seal, and no protect step writes a method blob into the APK. Wiring it for real needs all three (fresh runtime smali + a config payload key + a protect step that seals and injects the blob with a test proving blob + loader are present in the protected output); until then this layer protects nothing in a shipped APK and stays PARTIAL.**",
+      "code_exists": true,
       "evidence_files": []
     },
     {
@@ -948,7 +948,7 @@
       "name": "Fake login flow (decoy auth that always flags)",
       "counters": "F",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py fake_login_flow() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23.",
+      "where": "transformer/traps.py fake_login_flow() + anti-rea.py protect plants it as smali/com/appcore/auth/LoginManager.smali; tests PASS 2026-11-23.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -957,7 +957,7 @@
       "name": "Fake crash (decoy crash log with marker)",
       "counters": "F",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py fake_crash() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23. A string only, never a real crash.",
+      "where": "transformer/traps.py fake_crash() + anti-rea.py protect plants it as assets/crash-report.txt; tests PASS 2026-11-23. A string only, never a real crash.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -966,7 +966,7 @@
       "name": "Slow maze (decoy with sleeps)",
       "counters": "F",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py slow_maze() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23. Only runs if an analyst invokes the decoy.",
+      "where": "transformer/traps.py slow_maze() + anti-rea.py protect plants it as smali/com/appcore/sync/RetryWorker.smali; tests PASS 2026-11-23. Only runs if an analyst invokes the decoy.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -975,7 +975,7 @@
       "name": "Fake update prompt (decoy)",
       "counters": "F",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py fake_update_prompt() + anti-rea.py protect plants the decoy XML; tests PASS 2026-11-23.",
+      "where": "transformer/traps.py fake_update_prompt() + anti-rea.py protect plants it as res/values/update.xml; tests PASS 2026-11-23.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -984,7 +984,7 @@
       "name": "Fake config file (decoy JSON)",
       "counters": "A,S",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py fake_config_file() + anti-rea.py protect plants the decoy JSON; tests PASS 2026-11-23.",
+      "where": "transformer/traps.py fake_config_file() + anti-rea.py protect plants it as assets/config.json; tests PASS 2026-11-23.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -993,7 +993,7 @@
       "name": "Fake native lib (decoy .so)",
       "counters": "G",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py fake_native_lib() + anti-rea.py protect plants it under assets/ (NOT lib/); tests PASS 2026-11-23. Header-only ELF, NOT loadable \u2014 a placeholder only.",
+      "where": "transformer/traps.py fake_native_lib() + anti-rea.py protect plants it as assets/libconfig.so (NOT lib/); tests PASS 2026-11-23. Header-only ELF, NOT loadable \u2014 a placeholder only.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -1002,7 +1002,7 @@
       "name": "Fake stack traces",
       "counters": "G",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py fake_stack_traces() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23.",
+      "where": "transformer/traps.py fake_stack_traces() + anti-rea.py protect plants it as assets/stacktrace.txt; tests PASS 2026-11-23.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -1011,7 +1011,7 @@
       "name": "Fake error messages with markers",
       "counters": "F",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py fake_error_messages() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23.",
+      "where": "transformer/traps.py fake_error_messages() + anti-rea.py protect plants it as assets/error-log.txt; tests PASS 2026-11-23.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -1020,7 +1020,7 @@
       "name": "Honeypot admin panel (decoy)",
       "counters": "F",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py honeypot_admin_panel() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23.",
+      "where": "transformer/traps.py honeypot_admin_panel() + anti-rea.py protect plants it as smali/com/appcore/admin/AdminPanel.smali; tests PASS 2026-11-23.",
       "code_exists": true,
       "evidence_files": []
     },
@@ -1029,7 +1029,7 @@
       "name": "Trap chaining (one trap leads to a second trap)",
       "counters": "F",
       "status": "IMPLEMENTED",
-      "where": "transformer/traps.py chain_traps() + anti-rea.py protect records the chain in REA-IR; tests PASS 2026-11-23.",
+      "where": "transformer/traps.py chain_traps() + anti-rea.py protect records the chain + planted paths (traps.files) in REA-IR; tests PASS 2026-11-23.",
       "code_exists": true,
       "evidence_files": []
     },

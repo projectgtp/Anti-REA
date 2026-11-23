@@ -10,8 +10,8 @@ Smali replacement, for original `const-string vN, "needle"`:
     const-string vT0, "<blob_b64>"
     const-string vT1, "<key_part1_b64>"
     const-string vT2, "<key_part2_b64>"
-    sget-object vT3, Lcom/antirea/runtime/ReaRuntime;->INSTANCE:Lcom/antirea/runtime/ReaRuntime;
-    invoke-virtual {vT3, vT0, vT1, vT2}, Lcom/antirea/runtime/ReaRuntime;->decrypt(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+    sget-object vT3, Lcom/appcore/runtime/ReaRuntime;->INSTANCE:Lcom/appcore/runtime/ReaRuntime;
+    invoke-virtual {vT3, vT0, vT1, vT2}, Lcom/appcore/runtime/ReaRuntime;->decrypt(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
     move-result-object vN
 vT0..vT3 are fresh registers obtained by bumping `.locals` by 4. The
 INSTANCE form is used deliberately so the call works whether or not
@@ -57,7 +57,7 @@ v-register, or an unknown nibble-limited form) instead of shipping
 a broken APK.
 
 Decoys / maze (L03, L52, L53): generated smali classes under
-com/antirea/decoy/ with plausible names and fake secret-looking
+com/appcore/cache/ with plausible names and fake secret-looking
 strings. They are TRAPS in the honest sense: the strings are fake
 (honeypot values from the config), using them triggers a server-side
 tripwire (see docs/TRAPS.md), and the classes do nothing useful.
@@ -67,6 +67,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from config import derive_needles  # noqa: E402
 from crypto import encrypt_payload  # noqa: E402
 
 CONST_RE = re.compile(
@@ -76,7 +77,7 @@ LINE_RE = re.compile(r"^\s*\.line\s+\d+\s*$")
 METHOD_RE = re.compile(r"^\s*\.method\s+")
 END_METHOD_RE = re.compile(r"^\s*\.end method\s*$")
 
-RUNTIME_CLASS = "Lcom/antirea/runtime/ReaRuntime;"
+RUNTIME_CLASS = "Lcom/appcore/runtime/ReaRuntime;"
 
 
 def unescape_smali(s):
@@ -120,12 +121,60 @@ def escape_smali(s):
              .replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r"))
 
 
+# --- needle matching: derivation + host case-insensitivity -----------
+#
+# Two slip-throughs of the same kind as the Bridge bare-domain leak
+# lived in the MATCHING, not just in the config list:
+#
+#   (a) Case. Hostnames are case-insensitive (RFC 1035), but every
+#       match above was byte-exact, so "HTTPS://MBBRIDGE.ONRENDER.COM"
+#       in smali survived a config that listed the lowercase URL.
+#       _ci_matchable() marks the needles this applies to — a URL
+#       (scheme://...) or a bare host (optionally :port and /path).
+#       Paths stay case-sensitive in DERIVATION (config.py never
+#       lowercases them); matching a whole URL case-insensitively is
+#       still safe because the payload encrypts the ACTUAL literal
+#       found, so the runtime value is byte-identical — over-matching
+#       a path's case only hides one more literal, it never changes
+#       behaviour. Non-URL needles (secrets, labels) stay exact.
+#   (b) Derivation. find_needles_in_text() and transform_smali_file()
+#       expand `exact` through config.derive_needles() themselves,
+#       so a caller that passes raw config strings still hides every
+#       derived spelling (bare host, www., scheme/port/trailing-slash/
+#       encoded forms). transform_static_fields() does the same from
+#       its payload keys when the caller passes no explicit list.
+
+_URL_LIKE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*://")
+_BARE_HOST_NEEDLE_RE = re.compile(
+    r"([A-Za-z0-9.\-]+)(?::\d+)?(?:/.*)?")
+
+
+def _ci_matchable(needle):
+    """True when `needle` is a URL or a bare host, i.e. its host part
+    is case-insensitive and it may be matched case-insensitively."""
+    if not needle or any(c.isspace() for c in needle):
+        return False
+    if _URL_LIKE_RE.match(needle):
+        return True
+    m = _BARE_HOST_NEEDLE_RE.fullmatch(needle)
+    return bool(m and "." in m.group(1))
+
+
 def find_needles_in_text(text, exact, patterns):
     """Return the list of configured needles found in text (exact match
-    wins; regex patterns match whole literals)."""
+    wins; regex patterns match whole literals). `exact` is expanded
+    through derive_needles() first, so derived spellings (bare host,
+    www., scheme/port/trailing-slash/encoded forms) are found even
+    when the caller passed only raw config strings; URL/host needles
+    also match case-insensitively (hosts are case-insensitive)."""
+    exact = derive_needles(list(exact or []))
     found = []
+    low_text = text.lower()
     for needle in exact:
         if needle and needle in text:
+            found.append(needle)
+        elif (needle and _ci_matchable(needle)
+                and needle.lower() in low_text):
             found.append(needle)
     for pat in patterns:
         try:
@@ -151,14 +200,27 @@ def _split_segments(value, exact, patterns):
             compiled.append(re.compile(pat))
         except re.error:
             pass
+    exact_sorted = sorted(exact, key=len, reverse=True)
+    # Case-insensitive candidates (URL / bare-host needles only —
+    # hosts are case-insensitive; see _ci_matchable). Longest first,
+    # like the exact list. The hit text is the ACTUAL substring from
+    # the value, so the payload encrypts the literal as written.
+    ci = sorted(((n, n.lower()) for n in exact if _ci_matchable(n)),
+                key=lambda t: len(t[0]), reverse=True)
+    low_value = value.lower()
     segs, buf, i, found = [], "", 0, False
     n = len(value)
     while i < n:
         hit = None
-        for needle in sorted(exact, key=len, reverse=True):
+        for needle in exact_sorted:
             if needle and value.startswith(needle, i):
                 hit = needle
                 break
+        if hit is None:
+            for needle, low in ci:
+                if low_value.startswith(low, i):
+                    hit = value[i:i + len(needle)]
+                    break
         if hit is None:
             for rx in compiled:
                 m = rx.match(value, i)
@@ -220,7 +282,11 @@ def _emit_concat(indent, temps, segs, payloads, orig_reg):
 def transform_smali_file(path, exact, patterns, payloads, stats):
     """Rewrite one .smali file in place. payloads: dict needle -> crypto
     dict (from encrypt_payload). stats: dict updated with counts.
-    Returns True if the file changed."""
+    Returns True if the file changed. `exact` is expanded through
+    derive_needles() first, so derived spellings are hidden even when
+    the caller passed only raw config strings."""
+    exact = derive_needles(list(exact or []))
+    exact_set = set(exact)
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     out, changed = [], False
     in_method = False
@@ -268,14 +334,31 @@ def transform_smali_file(path, exact, patterns, payloads, stats):
             hit = None
             if value in payloads:
                 hit = value
+            elif value in exact_set:
+                # Whole literal is a configured (or derived) needle
+                # the sweep never saw — encrypt it on demand instead
+                # of leaving it because payloads lacks the key.
+                hit = value
             else:
-                for pat in patterns:
-                    try:
-                        if re.fullmatch(pat, value):
-                            hit = value
-                            break
-                    except re.error:
-                        pass
+                # Whole literal is a case variant of a URL/host
+                # needle (hosts are case-insensitive) — the payload
+                # encrypts the literal as written.
+                low = value.lower()
+                for needle in exact_set:
+                    if (_ci_matchable(needle)
+                            and needle.lower() == low):
+                        hit = value
+                        break
+                if hit is None:
+                    for pat in patterns:
+                        try:
+                            if re.fullmatch(pat, value):
+                                hit = value
+                                break
+                        except re.error:
+                            pass
+            if hit is not None and hit not in payloads:
+                payloads[hit] = encrypt_payload(hit)
             segs = None
             if hit is None:
                 segs = _split_segments(value, exact, patterns)
@@ -1149,7 +1232,34 @@ def _decrypt_block(indent, temps, payload, result_reg=None):
     ]
 
 
-def transform_static_fields(path, payloads, stats):
+def _field_value_sensitive(value, needles, patterns, payloads):
+    """True when a static field's string value must be hidden: it is
+    itself a known needle, it CONTAINS one (exact, derived, or a
+    case variant of a URL/host needle), or it matches a pattern.
+    (The old code only hid a field whose value EQUALLED a needle —
+    a field holding "Enter a domain, for example
+    mbbridge.onrender.com" or a bare host therefore survived.)"""
+    if not value:
+        return False
+    if value in payloads:
+        return True
+    low = value.lower()
+    for n in needles:
+        if n and n in value:
+            return True
+        if n and _ci_matchable(n) and n.lower() in low:
+            return True
+    for pat in patterns:
+        try:
+            if re.search(pat, value):
+                return True
+        except re.error:
+            continue
+    return False
+
+
+def transform_static_fields(path, payloads, stats, exact=None,
+                            patterns=None):
     """Rewrite static String field initializers (L01b).
 
     Kotlin `const val` / Java `static final String X = "..."` compiles
@@ -1158,7 +1268,24 @@ def transform_static_fields(path, payloads, stats):
     it. This pass strips the initializer and assigns the decrypted
     value in `<clinit>` instead (creating `<clinit>` if the class has
     none). Returns True if the file changed.
+
+    The WHOLE field value is encrypted whenever it needs hiding (a
+    needle it contains, a pattern it matches, or a case variant of a
+    URL/host needle) — whole-value encryption needs no concatenation
+    in <clinit> and hides the surrounding prose too, while the
+    runtime value is byte-identical. `exact`/`patterns` are optional:
+    when omitted, needles are derived from the payload keys already
+    collected (which, since find_needles_in_text() derives, already
+    include derived spellings found anywhere in the APK) — but a
+    field value that matches ONLY a pattern is then missed, so
+    callers with patterns should pass them explicitly.
     """
+    if exact is not None or patterns is not None:
+        needles = derive_needles(list(exact or []))
+        pats = list(patterns or [])
+    else:
+        needles = derive_needles(list(payloads))
+        pats = []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     class_desc = None
     for ln in lines:
@@ -1174,7 +1301,9 @@ def transform_static_fields(path, payloads, stats):
         m = FIELD_RE.match(ln)
         if m:
             value = unescape_smali(m.group(4))
-            if value in payloads:
+            if _field_value_sensitive(value, needles, pats, payloads):
+                if value not in payloads:
+                    payloads[value] = encrypt_payload(value)
                 fields.append((m.group(3), payloads[value]))
                 out.append("%s.field %s%s:Ljava/lang/String;"
                            % (m.group(1), m.group(2), m.group(3)))
@@ -1228,7 +1357,7 @@ def transform_static_fields(path, payloads, stats):
     return True
 
 
-DECOY_CLASS_TMPL = """# Anti-REA v1.0 decoy class — intentionally fake.
+DECOY_CLASS_TMPL = """# Cache helper — internal use only.
 # The strings below are HONEYPOT values from the config: they look like
 # real secrets/endpoints but are fake. Using one triggers a server-side
 # tripwire (see docs/TRAPS.md). The methods do nothing useful.
@@ -1262,18 +1391,18 @@ DECOY_CLASS_TMPL = """# Anti-REA v1.0 decoy class — intentionally fake.
 
 def write_decoy_smali(out_dir, index, fake_value, method_name):
     """Write one decoy smali class. Returns its path."""
-    cls = "com/antirea/decoy/Decoy%02d" % index
+    cls = "com/appcore/cache/Cache%02d" % index
     text = DECOY_CLASS_TMPL.format(
         cls=cls, mname=method_name, mname2=method_name + "Code",
         value=escape_smali(fake_value))
-    d = Path(out_dir) / "smali" / "com" / "antirea" / "decoy"
+    d = Path(out_dir) / "smali" / "com" / "appcore" / "cache"
     d.mkdir(parents=True, exist_ok=True)
-    p = d / ("Decoy%02d.smali" % index)
+    p = d / ("Cache%02d.smali" % index)
     p.write_text(text, encoding="utf-8")
     return p
 
 
-MAZE_CLASS_TMPL = """# Anti-REA v1.0 dead-code maze — analysis-time sink, no behaviour.
+MAZE_CLASS_TMPL = """# dead-code maze — analysis-time sink, no behaviour.
 # A chain of plausible-looking branches that always resolves to 0.
 .class public L{cls};
 .super Ljava/lang/Object;
@@ -1305,9 +1434,9 @@ MAZE_CLASS_TMPL = """# Anti-REA v1.0 dead-code maze — analysis-time sink, no b
 
 
 def write_maze_smali(out_dir, index):
-    cls = "com/antirea/decoy/Maze%02d" % index
+    cls = "com/appcore/cache/Maze%02d" % index
     text = MAZE_CLASS_TMPL.format(cls=cls, tag="%02d" % index)
-    d = Path(out_dir) / "smali" / "com" / "antirea" / "decoy"
+    d = Path(out_dir) / "smali" / "com" / "appcore" / "cache"
     d.mkdir(parents=True, exist_ok=True)
     p = d / ("Maze%02d.smali" % index)
     p.write_text(text, encoding="utf-8")
@@ -1569,7 +1698,7 @@ def insert_opaque_predicates(path, seed=0, stats=None):
 
 # --- L59 method-call indirection --------------------------------------
 
-INDIRECT_CLASS = "Lcom/antirea/runtime/ReaIndirect;"
+INDIRECT_CLASS = "Lcom/appcore/runtime/ReaIndirect;"
 _INVOKE_RE = re.compile(
     r"^(\s*)(invoke-\w+)(/range)?\s+\{([^}]*)\},\s*"
     r"(L[\w/$]+;)->(\w+)\(([^)]*)\)(\S+)\s*$")
@@ -1599,7 +1728,7 @@ def indirect_method_calls(path, targets, stubs, stats=None):
     (L59). targets: list of (callee_class, method_name) — every
     matching invoke-virtual/static/interface call site in this file is
     rewritten to invoke-static/range on
-    Lcom/antirea/runtime/ReaIndirect;->rea_indirect_N(...), and the
+    Lcom/appcore/runtime/ReaIndirect;->rea_indirect_N(...), and the
     stub's signature is recorded in `stubs` (a dict shared across
     files, keyed by full callee signature) for write_indirect_stub().
     No extra locals are needed: the replacement reuses the call's own
@@ -1695,7 +1824,7 @@ def _param_type_string(params_desc, index):
 
 
 def write_indirect_stub_class(smali_root, stubs):
-    """Write smali/com/antirea/runtime/ReaIndirect.smali (L59) with
+    """Write smali/com/appcore/runtime/ReaIndirect.smali (L59) with
     one public static forwarding method per recorded stub. Each stub
     just re-issues the original invoke with the same arguments and
     returns the same value. `stubs` is the dict filled by
@@ -1707,9 +1836,9 @@ def write_indirect_stub_class(smali_root, stubs):
     if not stub_list:
         return None
     lines = [
-        "# Anti-REA v1.0 indirection stubs (L59) — generated, no behaviour.",
+        "# indirection stubs (L59) — generated, no behaviour.",
         "# Each method forwards one call to its original target.",
-        ".class public Lcom/antirea/runtime/ReaIndirect;",
+        ".class public Lcom/appcore/runtime/ReaIndirect;",
         ".super Ljava/lang/Object;",
         "",
         ".method public constructor <init>()V",
@@ -1750,7 +1879,7 @@ def write_indirect_stub_class(smali_root, stubs):
             lines.append("    return v0")
         lines.append(".end method")
         lines.append("")
-    d = Path(smali_root) / "com" / "antirea" / "runtime"
+    d = Path(smali_root) / "com" / "appcore" / "runtime"
     d.mkdir(parents=True, exist_ok=True)
     p = d / "ReaIndirect.smali"
     p.write_text("\n".join(lines), encoding="utf-8")

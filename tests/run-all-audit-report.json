@@ -1,0 +1,126 @@
+{
+  "generated_utc": "2026-11-23T11:39:39.238985+00:00",
+  "suites": [
+    {
+      "suite": "self-check",
+      "pass": true,
+      "detail": "SELF-CHECK OK: 73 files verified against anti-rea.manifest.json"
+    },
+    {
+      "suite": "jvm-runtime",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-modblock",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-ggfix",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-resstrings",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "cli-verify",
+      "pass": true,
+      "detail": "attack verdict=PASS rc=0"
+    },
+    {
+      "suite": "coverage",
+      "pass": true,
+      "detail": "total=103 counts={'IMPLEMENTED': 97, 'PARTIAL': 6}"
+    },
+    {
+      "suite": "keyvault",
+      "pass": true,
+      "detail": "KEYVAULT-SELFTEST-PASS"
+    },
+    {
+      "suite": "marketplace",
+      "pass": true,
+      "detail": "MARKETPLACE-TEST-PASS: 1 plugin(s)"
+    },
+    {
+      "suite": "profiles",
+      "pass": true,
+      "detail": "light=16 strict=97 (light \u2282 strict)"
+    },
+    {
+      "suite": "ghidra-smoke",
+      "pass": null,
+      "detail": "skipped (--skip-ghidra)"
+    },
+    {
+      "suite": "junk-traps",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "suite": "frida-harness",
+      "pass": true,
+      "detail": "unit OK + dry-run rc=0"
+    },
+    {
+      "suite": "ios-profile",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "suite": "gradle-plugin",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "suite": "jvm-methoddecrypt",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "self-changing",
+      "pass": true,
+      "detail": "flag tests OK + blob self-test rc=0"
+    },
+    {
+      "suite": "verifier-unit",
+      "pass": true,
+      "detail": "test_needle_derivation.py: ; test_cli_errors.py: ; test_attack_tamper.py: ; test_shipped_names.py: "
+    },
+    {
+      "suite": "jvm-integrity2",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-env2",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-timer",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-audit",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-hiding",
+      "pass": true,
+      "detail": "TEST-PASS"
+    }
+  ],
+  "passed": 22,
+  "failed": [],
+  "skipped": [
+    "ghidra-smoke"
+  ],
+  "verdict": "PASS"
+}

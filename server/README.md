@@ -46,7 +46,7 @@ python3 server/test_server.py
   `suspicious` (step-up verification), ≥70 `blocked`.
 - **L69 — audit export** (`export_events` / `parse_export`): events
   → JSONL, one JSON object per line, each stamped with
-  `schema_version: "antirea-audit/v1"` and `timestamp_utc`. Every line
+  `schema_version: "appcore-audit/v1"` and `timestamp_utc`. Every line
   parses independently with `json.loads`.
 - **L70 — key rotation via server** (`rotate_keys` /
   `old_key_still_valid`): fresh random new key id (never derived from
@@ -64,3 +64,40 @@ python3 server/test_server.py
   alone (see `docs/SERVER.md`).
 - One tripwire event is never auto-punishment: flag for human review;
   repeated events may escalate per server policy.
+- L65 stores an **unsalted** SHA-256 of the device id. That is only
+  safe because the id must be a high-entropy random token issued by
+  the server: a low-entropy id (serial number, IMEI, sequential id)
+  can be brute-forced from its hash. Never bind a low-entropy id.
+- L66's in-memory device cap evicts the first-seen entry when full,
+  which can unblock an evicted device early; a real server persists
+  the limiter in Redis/its database instead of relying on the cap.
+- L67 has no un-revoke: revocation is one-way in this reference.
+  A real server needs an explicit un-revoke path if it ever wants
+  to restore a build.
+
+## Audit fixes (2026-11-23)
+
+- **L64 — fail closed on empty expected set.** `verify_component_hashes`
+  used to accept everything when `expected_hashes` was empty
+  (vacuous accept); it now rejects with "no expected component
+  hashes configured".
+- **L65 — corrupt stored binding rejects.** `check_device_binding`
+  used to raise `AttributeError` on a non-dict stored value; it now
+  rejects cleanly.
+- **L66 — bounded state.** `FailedAttestationLimiter` used to grow
+  its per-device dict without limit (distinct device ids are
+  attacker-controlled); it now takes `max_devices` (default 10000)
+  and evicts first-seen entries past the cap.
+- **L68 — weight validation.** `score_findings` used to accept NaN /
+  infinite / string / bool / `None` weights, which silently corrupt
+  the score and band (a NaN total scores "clean" no matter what was
+  detected); weights must now be finite numbers >= 0 and findings
+  must be dicts.
+- **L69 — canonical schema_version.** `export_events` used to let an
+  event's own `schema_version` field overwrite the canonical one
+  (export relabelling); the canonical version now always wins.
+  Non-dict events are rejected.
+- **L70 — malformed rotation rejects.** `old_key_still_valid` used
+  to raise raw `KeyError`/`ValueError` on a bad rotation dict; it
+  now raises a clear `ValueError`.
+- Verified by the 36 tests in `test_server.py` (29 original + 7 new).
