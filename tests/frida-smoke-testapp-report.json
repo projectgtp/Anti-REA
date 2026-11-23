@@ -1,0 +1,37 @@
+{
+  "apk": "tests/testapp/testapp-protected.apk",
+  "dex": "classes.dex",
+  "dex_bytes": 1979480,
+  "frida_markers": {
+    "frida-agent": {
+      "present_in_dex_bytes": true,
+      "byte_occurrences": 1
+    },
+    "frida-gadget": {
+      "present_in_dex_bytes": true,
+      "byte_occurrences": 1
+    },
+    "27042": {
+      "present_in_dex_bytes": true,
+      "byte_occurrences": 2
+    }
+  },
+  "env_check_methods": {
+    "isDebuggerConnected": true,
+    "isEmulator": true,
+    "isFridaPresent": false,
+    "fridaMapsDetected": true,
+    "detectFrida": false,
+    "checkFrida": false,
+    "detectDebugger": false,
+    "isRunningOnEmulator": false,
+    "isRooted": true,
+    "isDebuggable": false,
+    "isDebuggerAttached": false,
+    "detectEmulator": false,
+    "checkRoot": false,
+    "isFridaDetected": false
+  },
+  "method_source": "dexdump",
+  "claim": "STATIC presence check only. Does NOT prove Frida is stopped at runtime. No device/emulator test was run."
+}

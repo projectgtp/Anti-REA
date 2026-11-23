@@ -1,0 +1,54 @@
+{
+  "control_apk": "tests/testapp/testapp-control.apk",
+  "protected_apk": "tests/testapp/testapp-control.apk",
+  "control_sha256": "d1708e7e8f902a939b4afe6b698a126c8420c6f9f30d9bd580859b31f036fcf8",
+  "protected_sha256": "d1708e7e8f902a939b4afe6b698a126c8420c6f9f30d9bd580859b31f036fcf8",
+  "control_bytes": 614877,
+  "protected_bytes": 614877,
+  "needles": [
+    "TEST-SECRET-7f3a9-generic",
+    "testapp.example.invalid"
+  ],
+  "tools": {
+    "strings_dex": {
+      "error": null
+    },
+    "jadx": {
+      "error": null
+    },
+    "apktool": {
+      "error": null
+    }
+  },
+  "control": {
+    "strings_dex": {
+      "TEST-SECRET-7f3a9-generic": 1,
+      "testapp.example.invalid": 1
+    },
+    "jadx": {
+      "TEST-SECRET-7f3a9-generic": 1,
+      "testapp.example.invalid": 1
+    },
+    "apktool": {
+      "TEST-SECRET-7f3a9-generic": 2,
+      "testapp.example.invalid": 2
+    }
+  },
+  "protected": {
+    "strings_dex": {
+      "TEST-SECRET-7f3a9-generic": 1,
+      "testapp.example.invalid": 1
+    },
+    "jadx": {
+      "TEST-SECRET-7f3a9-generic": 1,
+      "testapp.example.invalid": 1
+    },
+    "apktool": {
+      "TEST-SECRET-7f3a9-generic": 2,
+      "testapp.example.invalid": 2
+    }
+  },
+  "errors": [],
+  "verdict": "FAIL",
+  "reason": "strings_dex [TEST-SECRET-7f3a9-generic]: protected=1 (must be 0); strings_dex [testapp.example.invalid]: protected=1 (must be 0); jadx [TEST-SECRET-7f3a9-generic]: protected=1 (must be 0); jadx [testapp.example.invalid]: protected=1 (must be 0); apktool [TEST-SECRET-7f3a9-generic]: protected=2 (must be 0); apktool [testapp.example.invalid]: protected=2 (must be 0)"
+}

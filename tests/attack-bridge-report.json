@@ -1,0 +1,76 @@
+{
+  "control_apk": "/home/hatch/workspace/bridge-marketplace/android/bridge-2.14.0.apk",
+  "protected_apk": "tests/bridge-2.14.0-v10-protected.apk",
+  "control_sha256": "7f140907b2b10120a912ff767d00e9a242aae40515f0c956ef423d5939a8dec3",
+  "protected_sha256": "e55801fda6b08704ed2d3f58bcc35bbc818a23b85c787ae31321926ddb81dc5d",
+  "control_bytes": 4573620,
+  "protected_bytes": 4500018,
+  "needles": [
+    "mbbridge",
+    "onrender",
+    "10.0.2.2",
+    "api.bridge.example",
+    "tunnel.key."
+  ],
+  "tools": {
+    "strings_dex": {
+      "error": null
+    },
+    "jadx": {
+      "error": null
+    },
+    "apktool": {
+      "error": null
+    }
+  },
+  "control": {
+    "strings_dex": {
+      "mbbridge": 3,
+      "onrender": 4,
+      "10.0.2.2": 1,
+      "api.bridge.example": 2,
+      "tunnel.key.": 1
+    },
+    "jadx": {
+      "mbbridge": 5,
+      "onrender": 5,
+      "10.0.2.2": 1,
+      "api.bridge.example": 2,
+      "tunnel.key.": 1
+    },
+    "apktool": {
+      "mbbridge": 9,
+      "onrender": 10,
+      "10.0.2.2": 3,
+      "api.bridge.example": 3,
+      "tunnel.key.": 4
+    }
+  },
+  "protected": {
+    "strings_dex": {
+      "mbbridge": 0,
+      "onrender": 0,
+      "10.0.2.2": 0,
+      "api.bridge.example": 0,
+      "tunnel.key.": 0
+    },
+    "jadx": {
+      "mbbridge": 0,
+      "onrender": 0,
+      "10.0.2.2": 0,
+      "api.bridge.example": 0,
+      "tunnel.key.": 0
+    },
+    "apktool": {
+      "mbbridge": 0,
+      "onrender": 0,
+      "10.0.2.2": 0,
+      "api.bridge.example": 0,
+      "tunnel.key.": 0
+    }
+  },
+  "errors": [],
+  "verdict": "PASS",
+  "reason": "protected is 0 for every needle in every tool; every needle found in control (>0) in at least one tool; every tool saw at least one needle. No per-tool vacuous needles.",
+  "vacuous_in_tool": {}
+}

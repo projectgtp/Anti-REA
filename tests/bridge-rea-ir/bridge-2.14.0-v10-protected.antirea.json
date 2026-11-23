@@ -1,0 +1,169 @@
+{
+  "anti_rea_version": "1.0.0",
+  "attestation_format": {
+    "fields": [
+      "app_package",
+      "build_id",
+      "dex_sha256",
+      "env_findings",
+      "integrity_passed",
+      "timestamp_utc"
+    ],
+    "note": "Client sends this to the app server; the server decides whether to trust the session (L61). v1.0 defines the format only \u2014 no server code ships.",
+    "type": "antirea-attestation/v1"
+  },
+  "component_id": "apk.com.bridge.mvp",
+  "created_utc": "2026-11-23T05:14:03.305780+00:00",
+  "decoys": 2,
+  "honeypots": {
+    "endpoints": [
+      "https://api-decoy.example.invalid/v1/admin"
+    ],
+    "secrets": [
+      "AKIAIOSFAKEEXAMPLE"
+    ],
+    "tripwire_note": "ANY use of a honeypot value must be logged server-side per docs/SERVER.md (L62/L63)."
+  },
+  "input_apk_sha256": "7f140907b2b10120a912ff767d00e9a242aae40515f0c956ef423d5939a8dec3",
+  "layers_applied": [
+    "L01",
+    "L02",
+    "L03",
+    "L04",
+    "L05",
+    "L07",
+    "L09",
+    "L10",
+    "L14",
+    "L16",
+    "L17",
+    "L18",
+    "L19",
+    "L20",
+    "L21",
+    "L22",
+    "L31",
+    "L32",
+    "L33",
+    "L34",
+    "L35",
+    "L36",
+    "L37",
+    "L46",
+    "L47",
+    "L48",
+    "L50",
+    "L51",
+    "L52",
+    "L53",
+    "L61",
+    "L62",
+    "L63",
+    "L71",
+    "L72",
+    "L73",
+    "L74",
+    "L75",
+    "L86",
+    "L87"
+  ],
+  "mazes": 3,
+  "needles_found_sha256": [
+    "0d005248e4ce3182881e15d3a0688f021dead6b352f02a0b89260369444def44",
+    "2ae1b9ccd255d3b9c6cc5ac21cfde28228e8ead1b427dfee5e7468106bf23a52",
+    "4e9b6e68e5db365856e751e67e3ac16bcb4b96fc76d42641094ea72dcf87187b",
+    "72fab58331801d90892b0dfb22f7100fdc61c3db75d92267c01c93a89b7df4a6",
+    "981703f1974193b2d36f18fcb783edc0d45312d112484df99f6c947db251d97c",
+    "b5eacc29cfbe951f1fc392c52b01210f1a95a7b521d1c57994226abb159119fb",
+    "eceeeaa9872eeb53d69b93f911d321474f4d491f13d1398552baf3f60598d626",
+    "f124c1af78e8a36ba95979fb49812b7e41b32adfd0919ead5d32e5f562bbdbea"
+  ],
+  "output_apk_sha256": "e55801fda6b08704ed2d3f58bcc35bbc818a23b85c787ae31321926ddb81dc5d",
+  "output_apk_size": 4500018,
+  "output_dex_sha256": "27999a768c297ed987aeca78fb3c1f4b6692a16550d94fa911fec2cf453db9d0",
+  "payload_count": 8,
+  "payloads": {
+    "k1": {
+      "blob_b64": "tQyt3f2/7xMPVH7Ee0T+fbbTiIf4M4Fkmqnc59n27fsulhOdRGAOaQ==",
+      "blob_sha256": "2d4959f9d2452b64548afcf4f9a83f996c3f2eb71966b9b048d047ebf1d0cbf1",
+      "key_part1_b64": "V0NonXAd2fjtQtl5o+A7TEj5/Q30dx1HmleSnwArCRc=",
+      "key_part2_b64": "V6UJaUIco/T91TV486XkPuS/0j8tlVlalNwkw8xM/Rc=",
+      "plain_sha256": "b5eacc29cfbe951f1fc392c52b01210f1a95a7b521d1c57994226abb159119fb"
+    },
+    "k2": {
+      "blob_b64": "wrhNuAU257hSdMuI9ZoqnNHCSTtt5iQziPfPAXXVWRKiU1ayjISy",
+      "blob_sha256": "36d7d3e44525e56686d3f3c568a0cca5846f90ed4473557ebd1edaa2376ca992",
+      "key_part1_b64": "b9JCf6xXwP3Y7fdMDUWh8rJ4sQUbS77Ko0whmPHBOqQ=",
+      "key_part2_b64": "4/Fhr0y6ER3cfm0ihuVKBajxbsIAeby4IvVJtEuTe80=",
+      "plain_sha256": "4e9b6e68e5db365856e751e67e3ac16bcb4b96fc76d42641094ea72dcf87187b"
+    },
+    "k3": {
+      "blob_b64": "z0+Eb2u28oKBH+rIaO+ZpP+E2CAIxHjYb5h/I2kUri7cxVjCOESGdm9RyVYyeeTbT4A=",
+      "blob_sha256": "240ecdd0ac500bc16a80555ab8fd4699d6a79d5d70558fa2a0b7e9203638d3de",
+      "key_part1_b64": "L5mYHC26j+owrhJ01dFYpoOK0OM0LVBW2tRNReQv854=",
+      "key_part2_b64": "kiyp8HeMYPg4mvVHn8nRDaBvyxhJMArpdVChzhZGqRY=",
+      "plain_sha256": "72fab58331801d90892b0dfb22f7100fdc61c3db75d92267c01c93a89b7df4a6"
+    },
+    "k4": {
+      "blob_b64": "qtPqXncCG4bdbITFS3Hytdd5CezE/G4d4TRtSiZr09A5hUKVaI+VgBVHllt2gLWq9a8NXHofld7YY/qRJ79l",
+      "blob_sha256": "6e55444140f673e973b107f5c4560c44ccead09a6827c276d5300d013bd98c19",
+      "key_part1_b64": "PDHCN3mrqy1Tyvw4x8fWshLtW+kTp7zs3GNHc+xE1UU=",
+      "key_part2_b64": "Z8bpxnZBE8An/wEGxTcPeYQneNoHykxcYGXPzKiU3X8=",
+      "plain_sha256": "f124c1af78e8a36ba95979fb49812b7e41b32adfd0919ead5d32e5f562bbdbea"
+    },
+    "k5": {
+      "blob_b64": "A9+lPcSpdI5bOXG7E5ZYqklwxPtCmtS9BXjnU84VNdXzvNK8acfIDbh4WWmWO4dQpRPmGg==",
+      "blob_sha256": "58818ba2c4faa4b6f5efbd55b8bd5d9fcd47909f3765559805ee497d991aea68",
+      "key_part1_b64": "vdeGY8c4Cqs5+W+xXV668YNUTypZFUhuj4NrmsBET9E=",
+      "key_part2_b64": "Jh8gr5TQ7Zexrwb2+UsPmx53mQAJx9EqFZcYtLwAo3g=",
+      "plain_sha256": "981703f1974193b2d36f18fcb783edc0d45312d112484df99f6c947db251d97c"
+    },
+    "k6": {
+      "blob_b64": "QXq8xBI+6PDcxsOGuR5XmdORZIDk2FisZOJBwRVAjnEkDpr8hcr2XTWov3t7BLH/qR6cVs5JH9eBoQ==",
+      "blob_sha256": "3fa5910830c6390f956d455d22bf597be9033abace284ac2d7caaf6f7b3fbf21",
+      "key_part1_b64": "Bvpr3YFoa2Qkd2gwY1JvguKu+XNs60Be4Nrji9Ax9rI=",
+      "key_part2_b64": "SoCFUXeYshZwr75leiS3GSzVS0DawzL5DR6hI4E8l4c=",
+      "plain_sha256": "0d005248e4ce3182881e15d3a0688f021dead6b352f02a0b89260369444def44"
+    },
+    "k7": {
+      "blob_b64": "rYgmXEVZXZ3rJCMTFp93FjG/0a3Vbzo+VIcQYpz3WCApEriFsU2Z4VDd0phuKDE0UJ32wKPQZ950E4D79A==",
+      "blob_sha256": "abe24ee617fd7ab1a0d65b758f399e1f0935c9123803919a425b53b78fda74e7",
+      "key_part1_b64": "1hhwVXB3ZrunVBIA4QDQxu3tLAWmYE9tF8m0oFfdRCM=",
+      "key_part2_b64": "l368oLIA0HWa66Lq5kyGl5MftLdg3kzWEfRXNM6yyiU=",
+      "plain_sha256": "eceeeaa9872eeb53d69b93f911d321474f4d491f13d1398552baf3f60598d626"
+    },
+    "k8": {
+      "blob_b64": "w/fdWd59YHkfJQtBq2eRQY127NTVm8NS66z7UfAp3XKdYwr7aUSdq7yQfw==",
+      "blob_sha256": "16bccdc1bbf3cfc7660243f21b515d02b797b38f6ee68c4d007706924667abe5",
+      "key_part1_b64": "h4maRliRL4pv5RiIfryAZh46inB/204wfvbxYoVKBus=",
+      "key_part2_b64": "bp/+01S5nEq2DEkLySbzpbukjHUeZ1KMyy5iIx6R4cs=",
+      "plain_sha256": "2ae1b9ccd255d3b9c6cc5ac21cfde28228e8ead1b427dfee5e7468106bf23a52"
+    }
+  },
+  "res_replaced": 2,
+  "stats": {
+    "fields_encrypted": 7,
+    "invokes_fixed": 5,
+    "lines_stripped": 33370,
+    "moves_fixed": 2,
+    "strings_embedded": 4,
+    "strings_encrypted": 19
+  },
+  "tripwire_format": {
+    "fields": [
+      "tripwire_id",
+      "kind",
+      "app_package",
+      "device_hash",
+      "timestamp_utc"
+    ],
+    "kinds": [
+      "honeypot_secret_used",
+      "honeypot_endpoint_used",
+      "integrity_failed",
+      "env_suspicious"
+    ],
+    "note": "Server must log the event and flag the account for review (L62/L63). Never auto-punish on one event.",
+    "type": "antirea-tripwire/v1"
+  }
+}

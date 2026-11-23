@@ -1,0 +1,55 @@
+# Anti-REA v1.0 — test config for Bridge 2.14.0 (proves the CLI works
+# on a real app, not only the tiny test app). Input APK is read-only.
+# Output is a TEST build (ephemeral keystore) — it will NOT install
+# over the stable-key 2.14.0.
+version: 1
+
+app:
+  name: "Bridge"
+  package: "com.bridge.mvp"
+
+protect:
+  strings:
+    - "https://mbbridge.onrender.com"
+    - "http://10.0.2.2:8000"
+    - "https://api.bridge.example"
+    # Bare domain too: DeveloperActivity contains the sentence
+    # "api.bridge.example is a placeholder, not a real server." — the
+    # full URL needle does not match it, but an attacker greps the
+    # bare substring. Longest needle wins in the splitter, so the full
+    # URL is still encrypted as one segment.
+    - "api.bridge.example"
+    - "bridge-marketplace.onrender.com"
+    - "tunnel.key."
+    # NOTE (2026-11-23, full-layers build): the fragment needles
+    # ".private" / ".public" were REMOVED. They are not secrets — they
+    # are fragments of "tunnel.key.private" / "tunnel.key.public" —
+    # and they match legitimate Bridge identifiers: jadx's own
+    # "Method not decompiled" stub quotes the method name
+    # "publicKeyFromPrivate", and ".publicKeyBase64" is a real field.
+    # The full "tunnel.key." needle above is the real secret check
+    # and is 0 in every tool. A needle must be a secret, not a
+    # substring of ordinary code, or the gate fails on false hits.
+  patterns:
+    - "https?://[A-Za-z0-9.-]*onrender\\.com[^\" ]*"
+  classes:
+    - "ApiClient"
+    - "BridgeConfig"
+  files: []
+
+honeypots:
+  secrets:
+    - "AKIAIOSFAKEEXAMPLE"
+  endpoints:
+    - "https://api-decoy.example.invalid/v1/admin"
+
+layers:
+  enable:
+  disable: []
+
+runtime:
+  provider: true
+  env_checks: true
+
+output:
+  rea_ir_dir: "rea-ir"

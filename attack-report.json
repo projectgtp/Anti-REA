@@ -1,0 +1,87 @@
+{
+  "control_apk": "/home/hatch/workspace/bridge-marketplace/android/bridge-2.14.0.apk",
+  "protected_apk": "tests/bridge-full-protected.apk",
+  "control_sha256": "7f140907b2b10120a912ff767d00e9a242aae40515f0c956ef423d5939a8dec3",
+  "protected_sha256": "3c9ef3d4d71613c9b508dfda4cbb3183b8da56db3ea015a7b3017ce9166532be",
+  "control_bytes": 4573620,
+  "protected_bytes": 4865135,
+  "needles": [
+    "https://mbbridge.onrender.com",
+    "http://10.0.2.2:8000",
+    "https://api.bridge.example",
+    "api.bridge.example",
+    "bridge-marketplace.onrender.com",
+    "tunnel.key."
+  ],
+  "tools": {
+    "strings_dex": {
+      "error": null
+    },
+    "jadx": {
+      "error": null
+    },
+    "apktool": {
+      "error": null
+    }
+  },
+  "control": {
+    "strings_dex": {
+      "https://mbbridge.onrender.com": 3,
+      "http://10.0.2.2:8000": 1,
+      "https://api.bridge.example": 1,
+      "api.bridge.example": 2,
+      "bridge-marketplace.onrender.com": 1,
+      "tunnel.key.": 1
+    },
+    "jadx": {
+      "https://mbbridge.onrender.com": 5,
+      "http://10.0.2.2:8000": 1,
+      "https://api.bridge.example": 1,
+      "api.bridge.example": 2,
+      "bridge-marketplace.onrender.com": 0,
+      "tunnel.key.": 1
+    },
+    "apktool": {
+      "https://mbbridge.onrender.com": 9,
+      "http://10.0.2.2:8000": 3,
+      "https://api.bridge.example": 2,
+      "api.bridge.example": 3,
+      "bridge-marketplace.onrender.com": 1,
+      "tunnel.key.": 4
+    }
+  },
+  "protected": {
+    "strings_dex": {
+      "https://mbbridge.onrender.com": 0,
+      "http://10.0.2.2:8000": 0,
+      "https://api.bridge.example": 0,
+      "api.bridge.example": 0,
+      "bridge-marketplace.onrender.com": 0,
+      "tunnel.key.": 0
+    },
+    "jadx": {
+      "https://mbbridge.onrender.com": 0,
+      "http://10.0.2.2:8000": 0,
+      "https://api.bridge.example": 0,
+      "api.bridge.example": 0,
+      "bridge-marketplace.onrender.com": 0,
+      "tunnel.key.": 0
+    },
+    "apktool": {
+      "https://mbbridge.onrender.com": 0,
+      "http://10.0.2.2:8000": 0,
+      "https://api.bridge.example": 0,
+      "api.bridge.example": 0,
+      "bridge-marketplace.onrender.com": 0,
+      "tunnel.key.": 0
+    }
+  },
+  "errors": [],
+  "verdict": "PASS",
+  "reason": "protected is 0 for every needle in every tool; every needle found in control (>0) in at least one tool; every tool saw at least one needle. Per-tool vacuous needles (needle invisible to that tool by construction, not a failure): {\"jadx\": [\"bridge-marketplace.onrender.com\"]}",
+  "vacuous_in_tool": {
+    "jadx": [
+      "bridge-marketplace.onrender.com"
+    ]
+  }
+}

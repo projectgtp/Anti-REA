@@ -1,0 +1,473 @@
+# Anti-REA v1.0 - L99 iOS profile (same REA-IR)
+#
+# STATUS: defined, never built on iOS here. There is no iOS toolchain
+# in this VM, no Xcode project, no Swift code, and no device test.
+# This file is a DEFINITION: it maps every REA-IR layer (L01-L103) to
+# its iOS equivalent so that, when an iOS build exists, the same REA-IR
+# manifest, keys, blobs and server attestation can be reused.
+#
+# Verdicts (exactly three, no others):
+#   APPLIES         - the layer transfers to iOS essentially unchanged
+#                     (same technique, iOS-native API).
+#   ADAPTED         - same protection goal, different mechanism
+#                     (different file format, language, or API).
+#   DOES-NOT-APPLY  - Android-only; no iOS counterpart. A reason is
+#                     always given, and no mechanism is claimed.
+#
+# Fields per entry:
+#   layer     - REA-IR layer id, must exist in layers/REGISTRY.md
+#   verdict   - one of the three verdicts above
+#   mechanism - REQUIRED for APPLIES and ADAPTED: the iOS mechanism
+#   android   - short name of the Android mechanism (from the registry)
+#   reason    - REQUIRED for DOES-NOT-APPLY: why there is no iOS form
+#   note      - optional honest limit (only where a real one exists)
+#
+# Format: plain YAML subset, parseable with Python stdlib only
+# (no PyYAML). Same subset as transformer/config.py: key: value
+# lines, nested mappings by indentation, lists with "- " items,
+# double-quoted scalars. No tabs, no flow maps, no anchors.
+version: 1
+profile: ios
+layer: L99
+name: "iOS profile (same REA-IR)"
+status: defined
+built_on_ios: false
+device_tested: false
+toolchain_in_vm: none
+platform: ios
+language: Swift
+binary_format: Mach-O
+min_ios: "16.0"
+rea_ir_version: 1
+total_layers: 103
+applies_count: 58
+adapted_count: 37
+does_not_apply_count: 8
+categories:
+  string_hiding:
+    - layer: L01
+      verdict: ADAPTED
+      mechanism: "Swift string literals encrypted into REA-IR blobs at build time, decrypted at runtime by a Swift helper using the same XOR plus split-key format; no smali transform exists on iOS."
+      android: "Smali const-string to blob plus decrypt call"
+    - layer: L02
+      verdict: ADAPTED
+      mechanism: "Swift string literals replaced by REA-IR blob references plus a Swift decrypt stub; same blob format as the Android stub, Swift syntax instead of Kotlin."
+      android: "Kotlin/Java literals to REA-IR plus stub"
+    - layer: L03
+      verdict: APPLIES
+      mechanism: "Plant fake secret-looking Swift string literals alongside real blobs; identical technique, Swift source instead of smali."
+      android: "Fake secret-looking literals"
+    - layer: L04
+      verdict: APPLIES
+      mechanism: "Plant fake Swift key literals carrying a tripwire id; any use is reported to the server exactly as on Android."
+      android: "Fake keys with tripwire id"
+    - layer: L05
+      verdict: APPLIES
+      mechanism: "Plant fake Swift URL literals carrying a tripwire id; any use is reported to the server exactly as on Android."
+      android: "Fake URLs with tripwire id"
+    - layer: L06
+      verdict: ADAPTED
+      mechanism: "Sweep Localizable.strings, Info.plist and asset catalog strings for needles, encrypt matches into a bundle asset, decrypt on demand with a Swift helper."
+      android: "res/values plus manifest needle sweep"
+      note: "Same limit as Android: code must call decrypt explicitly; a plain NSLocalizedString lookup returns the placeholder."
+    - layer: L07
+      verdict: ADAPTED
+      mechanism: "Mach-O string sweep verify: run strings and nm on the control and protected binaries and require every needle to be 0 in the protected one."
+      android: "DEX string sweep verify, control vs protected"
+    - layer: L08
+      verdict: DOES-NOT-APPLY
+      reason: "R8 and ProGuard are Android-only; iOS has no R8 step. Swift symbol stripping is a different, unbuilt practice and is not this layer."
+      android: "R8 rename mapping at build"
+    - layer: L09
+      verdict: ADAPTED
+      mechanism: "Sweep Info.plist and entitlements for needles and move sensitive values into the encrypted bundle asset; the Android manifest provider has no iOS counterpart."
+      android: "Provider inject plus label sweep"
+    - layer: L10
+      verdict: ADAPTED
+      mechanism: "Decoy Swift types under a neutral module namespace with generic secret-like method names; same camouflage goal, Swift types instead of smali classes."
+      android: "Decoy classes under com/antirea/decoy/"
+    - layer: L11
+      verdict: ADAPTED
+      mechanism: "Control-flow flattening at Swift source level or via an LLVM pass; the smali form does not apply to Mach-O code."
+      android: "Smali control-flow flatten"
+    - layer: L12
+      verdict: ADAPTED
+      mechanism: "Mach-O string hiding: replace complete printable-run needles in the __cstring section of the binary or dylib, same rule as the .so pass."
+      android: "Native .so literal hiding"
+    - layer: L13
+      verdict: APPLIES
+      mechanism: "Encrypt bundle assets with the same REA-IR asset encryption and decrypt on demand in Swift; identical mechanism and limit."
+      android: "Encrypt assets/ blobs"
+    - layer: L14
+      verdict: ADAPTED
+      mechanism: "Strip DWARF debug info and ship without the dSYM; .line directives are a DEX and smali concept with no Mach-O equivalent."
+      android: "Strip .line directives"
+    - layer: L15
+      verdict: DOES-NOT-APPLY
+      reason: "Targets dex decompilers such as jadx; iOS decompilers (Hopper, Ghidra, IDA) do not choke the same way, and the Android layer itself is PLANNED, not built."
+      android: "Invalid-UTF traps (PLANNED on Android)"
+  integrity:
+    - layer: L16
+      verdict: ADAPTED
+      mechanism: "Code-signature check at startup: verify the app code signature and embedded provisioning profile with SecCodeCheckValidity, and refuse on mismatch."
+      android: "APK signature check at startup"
+    - layer: L17
+      verdict: ADAPTED
+      mechanism: "Mach-O SHA-256 check: hash the main executable __TEXT segment at startup and compare with the pinned value."
+      android: "DEX SHA-256 check"
+    - layer: L18
+      verdict: APPLIES
+      mechanism: "Every REA-IR blob carries a hash prefix verified before unlock; the blob format is platform-independent."
+      android: "Hash-prefix in every blob"
+    - layer: L19
+      verdict: APPLIES
+      mechanism: "Hash of assets/antirea/manifest.json verified at startup; the same manifest file ships in the iOS bundle."
+      android: "REA-IR manifest hash"
+    - layer: L20
+      verdict: APPLIES
+      mechanism: "Re-verify blob integrity before every decrypt, same as Android."
+      android: "Verify before every unlock"
+    - layer: L21
+      verdict: APPLIES
+      mechanism: "On tamper, throw and refuse; never return a plausible wrong value, same as Android."
+      android: "Throw, never return a wrong value"
+    - layer: L22
+      verdict: APPLIES
+      mechanism: "File-hash manifest covering the Mach-O binary, Info.plist and blobs instead of dex; same manifest mechanism."
+      android: "File-hash manifest (dex plus manifest plus blobs)"
+    - layer: L23
+      verdict: ADAPTED
+      mechanism: "App Store receipt validation (StoreKit receipt check) to distinguish App Store installs from sideloaded or TestFlight builds; signal only, never a refusal alone."
+      android: "Installer-origin check (Play vs sideload)"
+    - layer: L24
+      verdict: DOES-NOT-APPLY
+      reason: "APK Signature Schemes v2 and v3 are Android-only; iOS has a single CMS code-signature scheme, covered for iOS by L16."
+      android: "Signature v2/v3 scheme check"
+    - layer: L25
+      verdict: ADAPTED
+      mechanism: "Hash the loaded executable image (__TEXT via dyld) at runtime instead of DEX class bytes; same self-hash goal."
+      android: "Own class hash"
+    - layer: L26
+      verdict: APPLIES
+      mechanism: "Per-build watermark id stamped into the REA-IR manifest; identical mechanism."
+      android: "Per-build id in manifest"
+    - layer: L27
+      verdict: APPLIES
+      mechanism: "Config hash pinned in the Swift runtime and verified at startup; identical mechanism."
+      android: "REA-IR hash pinned in runtime"
+    - layer: L28
+      verdict: APPLIES
+      mechanism: "Hash Localizable.strings and asset catalog entries at startup; same mechanism, iOS resource set."
+      android: "Resource hash check"
+    - layer: L29
+      verdict: ADAPTED
+      mechanism: "Hash embedded frameworks and dylibs under Frameworks/ at startup; same mechanism, Mach-O files instead of .so files."
+      android: "Native lib hash check"
+    - layer: L30
+      verdict: APPLIES
+      mechanism: "Periodic re-check on a DispatchSourceTimer with an injectable clock, stopping on refusal; same mechanism."
+      android: "Periodic integrity re-check"
+  environment:
+    - layer: L32
+      verdict: ADAPTED
+      mechanism: "Simulator detect: check for the simulator runtime (TARGET_OS_SIMULATOR, x86_64 or arm64 simulator device model, missing telephony hardware); Android Build markers do not exist on iOS."
+      android: "Emulator detect (Build markers)"
+    - layer: L33
+      verdict: ADAPTED
+      mechanism: "Jailbreak detect: check for Cydia and Sileo paths, MobileSubstrate files, a writable /private, and a fork() that succeeds; same goal as root detect, iOS indicators."
+      android: "Root detect (su binaries, test-keys)"
+    - layer: L38
+      verdict: APPLIES
+      mechanism: "Check system proxy settings (CFNetworkCopySystemProxySettings) and VPN status (NEVPNManager); same check, iOS APIs."
+      android: "VPN/proxy detect"
+    - layer: L39
+      verdict: ADAPTED
+      mechanism: "Check UIScreen.isCaptured and listen for capturedDidChangeNotification (ReplayKit and AirPlay mirroring); MediaProjection is Android-only."
+      android: "Screen-share/screencap detect (MediaProjection)"
+    - layer: L40
+      verdict: ADAPTED
+      mechanism: "Flag suspicious location behaviour and known location-spoofing tweak files; iOS has no mock-location provider setting like Android, so this is a weak flag-only signal."
+      android: "Mock-location detect"
+      note: "Weakest iOS environment signal; flag only, never refuse."
+    - layer: L41
+      verdict: DOES-NOT-APPLY
+      reason: "Android Developer Options has no iOS counterpart; iOS Developer Mode (iOS 16 and later) is a device setting apps cannot reliably read."
+      android: "Developer-options detect"
+    - layer: L42
+      verdict: DOES-NOT-APPLY
+      reason: "adb and USB debugging are Android-only; iOS exposes no app-visible USB debugging flag. Debugger attach is covered by L31."
+      android: "USB-debugging detect"
+    - layer: L43
+      verdict: DOES-NOT-APPLY
+      reason: "Android app cloners (parallel and dual apps) have no iOS equivalent; iOS does not allow two installs of the same bundle id."
+      android: "App-cloner detect"
+    - layer: L44
+      verdict: APPLIES
+      mechanism: "Compare device time with server time and the monotonic clock, 60 second tolerance; same mechanism."
+      android: "Time-tamper detect (clock skew)"
+    - layer: L45
+      verdict: APPLIES
+      mechanism: "Flag locale and timezone combinations that do not match the device region; same flag-only mechanism."
+      android: "Locale/timezone anomaly flag"
+    - layer: L101
+      verdict: ADAPTED
+      mechanism: "Check known jailbreak-tool URL schemes (cydia, sileo, zebra, filza) via canOpenURL with LSApplicationQueriesSchemes, plus known jailbreak file paths; refuse the sensitive action while present, never delete or harm."
+      android: "On-device modder-app block (13 package names)"
+      note: "iOS apps cannot list installed apps, so this is weaker than the Android package check; renamed tools evade the scheme check."
+    - layer: L102
+      verdict: ADAPTED
+      mechanism: "Detect jailbreak plus tracer plus suspicious loaded dylibs, and keep sensitive values in obfuscated in-memory form with a checksum (Swift equivalent of ObfuscatedLong); iOS memory editors need a jailbreak, so jailbreak detection is the main gate."
+      android: "GameGuardian/memory-editor defence (behaviour)"
+      note: "Same honest limit as Android: root plus patience wins in the end; the server must never trust client-reported numbers."
+    - layer: L103
+      verdict: ADAPTED
+      mechanism: "Bundle-id exact match plus code-signature team-id check (re-signing on iOS changes the team id and certificate); expected identity stored only as an encrypted blob."
+      android: "Package-name plus signing-cert SHA-256"
+  anti_debug:
+    - layer: L31
+      verdict: APPLIES
+      mechanism: "Check the P_TRACED flag with sysctl (KERN_INFO) and refuse while a debugger is attached; the classic iOS anti-debug check."
+      android: "Debugger detect (Debug.isDebuggerConnected)"
+    - layer: L37
+      verdict: APPLIES
+      mechanism: "Run the full environment check (including debugger and jailbreak) before every decrypt-gated action; same mechanism."
+      android: "Env re-check before decrypt-gated actions"
+  anti_hook:
+    - layer: L34
+      verdict: ADAPTED
+      mechanism: "Scan loaded images with dyld_image_count and _dyld_get_image_name for frida-agent and re.frida.server; /proc/self/maps does not exist on iOS."
+      android: "Frida maps detect (/proc/self/maps)"
+    - layer: L35
+      verdict: ADAPTED
+      mechanism: "Probe TCP ports 27042 and 27043 on 127.0.0.1 with connect(); same Frida default ports, no /proc/net/tcp on iOS."
+      android: "Frida port detect (27042/27043 via /proc/net/tcp)"
+    - layer: L36
+      verdict: ADAPTED
+      mechanism: "Scan loaded images for MobileSubstrate, CydiaSubstrate, libsubstitute and libhooker; Xposed is Android-only."
+      android: "Hook-lib detect (Xposed/Substrate markers)"
+    - layer: L54
+      verdict: APPLIES
+      mechanism: "Re-run the environment and hook checks inside the decrypt path and never decrypt when they fire; same mechanism."
+      android: "Anti-hook re-check inside decrypt path"
+  runtime:
+    - layer: L46
+      verdict: APPLIES
+      mechanism: "Decrypt only in memory; never write plaintext to disk or log, same as Android."
+      android: "In-memory-only decrypt"
+    - layer: L47
+      verdict: APPLIES
+      mechanism: "Same XOR plus split-key REA-IR blob format; neither key part alone is the key."
+      android: "Split keys (XOR plus split-key)"
+    - layer: L48
+      verdict: APPLIES
+      mechanism: "Fresh random keys on every protect run; same mechanism."
+      android: "Per-build key rotation"
+    - layer: L49
+      verdict: ADAPTED
+      mechanism: "Small C integrity gate compiled into the app (or a dylib) and called from Swift, same role as libregate.so; arm64 only."
+      android: "Native check stub (.so integrity gate)"
+      note: "Same limit as Android: never device-tested here."
+    - layer: L50
+      verdict: APPLIES
+      mechanism: "Refuse a sensitive action after N calls once integrity has failed; same mechanism."
+      android: "Delayed silent failure"
+    - layer: L51
+      verdict: APPLIES
+      mechanism: "Use of a fake value records a tripwire event; same mechanism."
+      android: "Honeypot tripwire"
+    - layer: L52
+      verdict: ADAPTED
+      mechanism: "Plausible useless Swift types that return fake data; same goal, Swift types instead of smali classes."
+      android: "Decoy classes (plausible, useless)"
+    - layer: L53
+      verdict: APPLIES
+      mechanism: "Branch chains resolving to 0 in Swift source; same mechanism."
+      android: "Dead-code maze (branch chains to 0)"
+    - layer: L55
+      verdict: APPLIES
+      mechanism: "Split literals across calls and rejoin at runtime in Swift; same mechanism."
+      android: "String chunking across calls"
+    - layer: L56
+      verdict: ADAPTED
+      mechanism: "Indirect access via the Objective-C runtime (NSClassFromString, objc_msgSend) or Swift Mirror; Java reflection has no Swift equivalent."
+      android: "Reflection-based access"
+    - layer: L57
+      verdict: ADAPTED
+      mechanism: "Load an encrypted dylib from the bundle with dlopen after decrypt; DexClassLoader is Android-only."
+      android: "Dynamic class loading (dex in assets)"
+    - layer: L58
+      verdict: APPLIES
+      mechanism: "Always-true and always-false branches in Swift source; same mechanism."
+      android: "Opaque predicates"
+    - layer: L59
+      verdict: APPLIES
+      mechanism: "Route sensitive calls through an indirection stub in Swift; same mechanism."
+      android: "Method-call indirection"
+    - layer: L60
+      verdict: DOES-NOT-APPLY
+      reason: "PLANNED and likely never on Android, and additionally blocked on iOS: writable-executable memory is forbidden without a JIT entitlement and App Store rules forbid self-modifying code."
+      android: "Runtime code mutation (PLANNED, likely never)"
+  server:
+    - layer: L61
+      verdict: APPLIES
+      mechanism: "Same signed attestation payload (integrity plus environment findings); the payload carries iOS findings instead of Android ones."
+      android: "Attestation payload format (signed)"
+    - layer: L62
+      verdict: APPLIES
+      mechanism: "Same tripwire event format; unchanged server-side."
+      android: "Tripwire log format"
+    - layer: L63
+      verdict: APPLIES
+      mechanism: "Same rule: use of a fake endpoint or secret flags the account; unchanged server-side."
+      android: "Honeypot-use flag"
+    - layer: L64
+      verdict: APPLIES
+      mechanism: "Same server/reference.py verify_component_hashes; platform-independent."
+      android: "Server-side component-hash reject"
+    - layer: L65
+      verdict: APPLIES
+      mechanism: "Same server/reference.py bind_device; the iOS device id is the vendor identifier (identifierForVendor), stored server-side only as a SHA-256."
+      android: "Device binding (attestation to device id)"
+    - layer: L66
+      verdict: APPLIES
+      mechanism: "Same server/reference.py limiter (5 failures per hour); unchanged server-side."
+      android: "Rate-limit on failed attestations"
+    - layer: L67
+      verdict: APPLIES
+      mechanism: "Same server/reference.py revoke_build; unchanged server-side."
+      android: "Remote kill-switch (revoke a build)"
+    - layer: L68
+      verdict: APPLIES
+      mechanism: "Same server/reference.py score_findings; iOS findings map onto the same score bands."
+      android: "Anomaly scoring (0-100)"
+    - layer: L69
+      verdict: APPLIES
+      mechanism: "Same server/reference.py JSONL export; unchanged server-side."
+      android: "Audit export (tripwire events)"
+    - layer: L70
+      verdict: APPLIES
+      mechanism: "Same server/reference.py rotate_keys with 7-day grace; unchanged server-side."
+      android: "Key rotation via server"
+  traps:
+    - layer: L71
+      verdict: APPLIES
+      mechanism: "Plant plausible fake admin and debug Swift URL literals; same trap, Swift source."
+      android: "Fake endpoints (admin/debug URLs)"
+    - layer: L72
+      verdict: APPLIES
+      mechanism: "Plant plausible fake Swift key literals; same trap."
+      android: "Fake secrets (API keys/tokens)"
+    - layer: L73
+      verdict: APPLIES
+      mechanism: "Plant plausible fake Swift key material; same trap."
+      android: "Fake keys (key material)"
+    - layer: L74
+      verdict: ADAPTED
+      mechanism: "Fake Swift methods returning fake data; same trap, Swift methods instead of smali methods."
+      android: "Decoy API (fake methods)"
+    - layer: L75
+      verdict: ADAPTED
+      mechanism: "Maze Swift types that waste analysis time; same trap, Swift types."
+      android: "Maze classes (analysis-time sink)"
+    - layer: L76
+      verdict: APPLIES
+      mechanism: "Decoy SwiftUI login flow that always flags the account when used; same trap."
+      android: "Fake login flow (decoy auth)"
+    - layer: L77
+      verdict: APPLIES
+      mechanism: "Decoy crash-log string with a marker; a string only, never a real crash, same as Android."
+      android: "Fake crash (decoy crash log)"
+    - layer: L78
+      verdict: APPLIES
+      mechanism: "Decoy Swift code with sleeps that only runs if an analyst invokes it; same trap."
+      android: "Slow maze (decoy with sleeps)"
+    - layer: L79
+      verdict: ADAPTED
+      mechanism: "Decoy update prompt as a UIAlertController pointing at a fake App Store page; same trap, UIKit instead of Android XML."
+      android: "Fake update prompt (decoy)"
+    - layer: L80
+      verdict: APPLIES
+      mechanism: "Decoy JSON config file in the bundle; same trap."
+      android: "Fake config file (decoy JSON)"
+    - layer: L81
+      verdict: ADAPTED
+      mechanism: "Header-only fake Mach-O dylib in the bundle (NOT in Frameworks/); same trap, Mach-O header instead of ELF header."
+      android: "Fake native lib (decoy .so)"
+      note: "Placeholder only, NOT loadable, same as the Android decoy .so."
+    - layer: L82
+      verdict: APPLIES
+      mechanism: "Decoy stack-trace strings with markers; same trap."
+      android: "Fake stack traces"
+    - layer: L83
+      verdict: APPLIES
+      mechanism: "Decoy Swift error strings with markers; same trap."
+      android: "Fake error messages with markers"
+    - layer: L84
+      verdict: APPLIES
+      mechanism: "Decoy SwiftUI admin panel that flags any use; same trap."
+      android: "Honeypot admin panel (decoy)"
+    - layer: L85
+      verdict: APPLIES
+      mechanism: "One trap leads to a second trap; recorded in the REA-IR, same as Android."
+      android: "Trap chaining"
+  verification:
+    - layer: L86
+      verdict: ADAPTED
+      mechanism: "Control vs protected Mach-O attack test: needles must be 0 in the protected binary, and the control must still show them so the test is never vacuous."
+      android: "Control-vs-protected attack test (0 never vacuous)"
+    - layer: L87
+      verdict: ADAPTED
+      mechanism: "Flip one byte in a blob or the Mach-O and require a refusal; same test, iOS binary."
+      android: "Tamper test (1-byte flip refuses)"
+    - layer: L88
+      verdict: ADAPTED
+      mechanism: "Same one-command protect-plus-verify gate; the iOS build step (xcodebuild) is not implemented here."
+      android: "CI gate (protect plus verify)"
+    - layer: L89
+      verdict: ADAPTED
+      mechanism: "Same runtime Frida test against a test iOS device; still PLANNED because it needs a device, same as Android."
+      android: "Frida runtime test (PLANNED, needs device)"
+    - layer: L90
+      verdict: APPLIES
+      mechanism: "Same Ghidra headless smoke test; Ghidra analyses Mach-O natively, same script shape."
+      android: "Ghidra smoke (native)"
+    - layer: L91
+      verdict: APPLIES
+      mechanism: "Same test: the user-arranged reverse-engineering contact attacks the iOS build when it exists; not done yet."
+      android: "Red-team test (user RE contact)"
+    - layer: L92
+      verdict: ADAPTED
+      mechanism: "Same suite-runner shape; iOS suites are not written yet."
+      android: "Regression suite (run_all.py)"
+    - layer: L93
+      verdict: APPLIES
+      mechanism: "Same layer_coverage.py report; this profile is counted once the registry merges L99."
+      android: "Layer coverage report"
+    - layer: L94
+      verdict: APPLIES
+      mechanism: "Same service/api.py; an iOS protect request adds profile ios, same endpoints."
+      android: "Service API (protection-as-a-service)"
+    - layer: L95
+      verdict: APPLIES
+      mechanism: "Same service dashboard; unchanged."
+      android: "Web upload plus dashboard"
+    - layer: L96
+      verdict: APPLIES
+      mechanism: "Same profiles.py mechanism; this file is itself a profile in that sense."
+      android: "Multi-app profiles (tools/profiles.py)"
+    - layer: L97
+      verdict: APPLIES
+      mechanism: "Same tools/keyvault.py vault; unchanged."
+      android: "Key management service"
+    - layer: L98
+      verdict: DOES-NOT-APPLY
+      reason: "Gradle is Android-only; the iOS equivalent would be an Xcode build-phase plugin, which is a different, unbuilt thing and is not this layer."
+      android: "Build-plugin (Gradle)"
+    - layer: L99
+      verdict: APPLIES
+      mechanism: "This file: profiles/ios.yaml, the validated iOS mapping of all 103 REA-IR layers."
+      android: "iOS profile (same REA-IR)"
+    - layer: L100
+      verdict: APPLIES
+      mechanism: "Same tools/layer_marketplace.py plugin mechanism; iOS-specific layers would ship as plugins."
+      android: "Layer marketplace (community layers)"

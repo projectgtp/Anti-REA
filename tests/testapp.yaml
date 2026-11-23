@@ -1,0 +1,32 @@
+# Anti-REA v1.0 — test config for the generic test app.
+# Proves the CLI works on a non-Bridge APK.
+version: 1
+
+app:
+  name: "TestApp"
+  package: "com.antirea.testapp"
+
+protect:
+  strings:
+    - "TEST-SECRET-7f3a9-generic"
+    - "https://testapp.example.invalid/api"
+  patterns: []
+  classes: []
+  files: []
+
+honeypots:
+  secrets:
+    - "AKIAIOSFAKEEXAMPLE"
+  endpoints:
+    - "https://api-decoy.example.invalid/v1/admin"
+
+layers:
+  enable:
+  disable: []
+
+runtime:
+  provider: true
+  env_checks: true
+
+output:
+  rea_ir_dir: "rea-ir"

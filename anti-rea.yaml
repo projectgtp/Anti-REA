@@ -1,0 +1,42 @@
+# Anti-REA v1.0 — example config. Copy this file, change the values,
+# run: python3 anti-rea.py protect --apk app.apk --config anti-rea.yaml --out app-protected.apk
+# Everything here is an EXAMPLE. Replace the strings/patterns with your
+# own app's real secrets. The honeypot values below are FAKE on purpose.
+version: 1
+
+app:
+  name: "ExampleApp"
+  package: "com.example.app"
+
+protect:
+  strings:
+    - "https://api.example.com"
+    - "https://api.example.com/v1/auth/login"
+  patterns:
+    - "https?://[A-Za-z0-9.-]+\\.example\\.com[^\" ]*"
+  classes:
+    - "ApiClient"
+  files: []
+
+# FAKE values, planted as traps. If anyone ever USES one, the server
+# must log a tripwire event (see docs/SERVER.md). Never put a real
+# secret here.
+honeypots:
+  secrets:
+    - "AKIAIOSFAKEEXAMPLE"
+    - "sk-fake-00000000000000000000000000000000"
+  endpoints:
+    - "https://api-decoy.example.invalid/v1/admin"
+    - "https://debug.example.invalid/v1/debug/grant"
+
+layers:
+  # null = run every IMPLEMENTED layer. List ids to run a subset.
+  enable:
+  disable: []
+
+runtime:
+  provider: true
+  env_checks: true
+
+output:
+  rea_ir_dir: "rea-ir"

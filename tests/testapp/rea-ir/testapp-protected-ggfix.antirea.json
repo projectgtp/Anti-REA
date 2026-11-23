@@ -1,0 +1,119 @@
+{
+  "anti_rea_version": "1.0.0",
+  "attestation_format": {
+    "fields": [
+      "app_package",
+      "build_id",
+      "dex_sha256",
+      "env_findings",
+      "integrity_passed",
+      "timestamp_utc"
+    ],
+    "note": "Client sends this to the app server; the server decides whether to trust the session (L61). v1.0 defines the format only \u2014 no server code ships.",
+    "type": "antirea-attestation/v1"
+  },
+  "component_id": "apk.com.antirea.testapp",
+  "created_utc": "2026-11-23T06:32:26.545722+00:00",
+  "decoys": 2,
+  "honeypots": {
+    "endpoints": [
+      "https://api-decoy.example.invalid/v1/admin"
+    ],
+    "secrets": [
+      "AKIAIOSFAKEEXAMPLE"
+    ],
+    "tripwire_note": "ANY use of a honeypot value must be logged server-side per docs/SERVER.md (L62/L63)."
+  },
+  "input_apk_sha256": "d1708e7e8f902a939b4afe6b698a126c8420c6f9f30d9bd580859b31f036fcf8",
+  "layers_applied": [
+    "L01",
+    "L02",
+    "L03",
+    "L04",
+    "L05",
+    "L07",
+    "L09",
+    "L10",
+    "L101",
+    "L14",
+    "L16",
+    "L17",
+    "L18",
+    "L19",
+    "L20",
+    "L21",
+    "L22",
+    "L31",
+    "L32",
+    "L33",
+    "L34",
+    "L35",
+    "L36",
+    "L37",
+    "L46",
+    "L47",
+    "L48",
+    "L50",
+    "L51",
+    "L52",
+    "L53",
+    "L61",
+    "L62",
+    "L63",
+    "L71",
+    "L72",
+    "L73",
+    "L74",
+    "L75",
+    "L86",
+    "L87"
+  ],
+  "mazes": 3,
+  "needles_found_sha256": [
+    "2db5557c350924362039578115f1d853a18a8b4753280221dcf1816f132e9938",
+    "ea6f395889600df4673e00f0d84886179ef0c911d602ff5672c5b5e7784c496b"
+  ],
+  "output_apk_sha256": "c3c7924ce975a34074cdc5a5781fddc90f00c2de96c8baa398c9a8ee6d531f37",
+  "output_apk_size": 594542,
+  "output_dex_sha256": "62a5f44648a5f50447ae77dc19f2826d5c8eff48b5fad81b637255e16090f487",
+  "payload_count": 2,
+  "payloads": {
+    "k1": {
+      "blob_b64": "wW6Z14acYwts0qDWehS/jaOPkaZy2fadS6TDvFhe0k24np//nsYCfh6uo3pYg1S/Oyh9hE+UhtX0",
+      "blob_sha256": "b7c55a4a4477f5883e8c45988f3519c95438ce1f47774ea541cf51560bb01510",
+      "key_part1_b64": "fmqH7QAsoN/psNFEdJ/h8vSlWWeNjWxbPWIjsd+eNsM=",
+      "key_part2_b64": "krFLRrO55+KlWyYTG3qGLPagQ4asfJjnqjdhYpTufbY=",
+      "plain_sha256": "2db5557c350924362039578115f1d853a18a8b4753280221dcf1816f132e9938"
+    },
+    "k2": {
+      "blob_b64": "3rY4uzou+Ge7dJSMYAL1qzFvx/SaxoeS0lujcAd8DJZcrXWTwHTavKgv5wjZOgOSyudviDyoHerJ8GD2E1kh0lWpaA==",
+      "blob_sha256": "f5e30d48e3a392de63a2511281090e72d6722911cdfa9e5562cfd4a47d005534",
+      "key_part1_b64": "+uNiGqdFb63psMq4WHlOBwq7QuHdR9X19vXPaR5/w88=",
+      "key_part2_b64": "zjpj+RQLmj41+l7E4DM9u6UkTASRg60xVmvZ/mFPhjI=",
+      "plain_sha256": "ea6f395889600df4673e00f0d84886179ef0c911d602ff5672c5b5e7784c496b"
+    }
+  },
+  "res_replaced": 0,
+  "stats": {
+    "fields_encrypted": 2,
+    "lines_stripped": 20696,
+    "strings_encrypted": 2
+  },
+  "tripwire_format": {
+    "fields": [
+      "tripwire_id",
+      "kind",
+      "app_package",
+      "device_hash",
+      "timestamp_utc"
+    ],
+    "kinds": [
+      "honeypot_secret_used",
+      "honeypot_endpoint_used",
+      "integrity_failed",
+      "env_suspicious"
+    ],
+    "note": "Server must log the event and flag the account for review (L62/L63). Never auto-punish on one event.",
+    "type": "antirea-tripwire/v1"
+  }
+}

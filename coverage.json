@@ -1,0 +1,1219 @@
+{
+  "tool": "anti-rea layer_coverage (L93)",
+  "generated_utc": "2026-11-23T07:55:58.240646+00:00",
+  "total_layers": 103,
+  "counts_by_status": {
+    "IMPLEMENTED": 99,
+    "PARTIAL": 3,
+    "PLANNED": 1
+  },
+  "implemented_total": 99,
+  "implemented_with_evidence": 58,
+  "implemented_without_evidence": [
+    "L23",
+    "L24",
+    "L25",
+    "L26",
+    "L27",
+    "L28",
+    "L29",
+    "L30",
+    "L39",
+    "L40",
+    "L41",
+    "L42",
+    "L43",
+    "L44",
+    "L56",
+    "L57",
+    "L65",
+    "L66",
+    "L67",
+    "L68",
+    "L69",
+    "L76",
+    "L77",
+    "L78",
+    "L79",
+    "L80",
+    "L81",
+    "L82",
+    "L83",
+    "L84",
+    "L85",
+    "L88",
+    "L89",
+    "L92",
+    "L93",
+    "L94",
+    "L95",
+    "L96",
+    "L97",
+    "L99",
+    "L100"
+  ],
+  "evidence_files_scanned": [
+    "GAMEGUARDIAN-FIX-REPORT.md",
+    "SELF-PROTECT-REPORT.md",
+    "TOOL-COVERAGE.md",
+    "TOOL-SWEEP-REPORT.md",
+    "VERIFICATION-REPORT-v1.0.md",
+    "tests/attack-bridge-full-report.json",
+    "tests/attack-bridge-report.json",
+    "tests/attack-selfprotect-report.json",
+    "tests/attack-selftest-report.json",
+    "tests/attack-testapp-report.json",
+    "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+    "tests/frida-smoke-control.json",
+    "tests/frida-smoke-testapp-report.json",
+    "tests/testapp-rea-ir/testapp-protected.antirea.json"
+  ],
+  "layers": [
+    {
+      "id": "L01",
+      "name": "Smali string encrypt (const-string \u2192 blob + decrypt call)",
+      "counters": "J,A,S,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py, anti-rea.py protect",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L02",
+      "name": "Source string encrypt (Kotlin/Java literals \u2192 REA-IR + stub)",
+      "counters": "J,A,S,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/source.py",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L03",
+      "name": "Decoy strings (fake secret-looking literals)",
+      "counters": "J,A,S",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L04",
+      "name": "Honeypot secrets (fake keys, tripwire id attached)",
+      "counters": "J,A,S,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py, docs/TRAPS.md",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L05",
+      "name": "Honeypot endpoints (fake URLs, tripwire id attached)",
+      "counters": "J,A,S,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py, docs/TRAPS.md",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L06",
+      "name": "Resource string sweep (res/values + manifest needles)",
+      "counters": "J,A,S",
+      "status": "IMPLEMENTED",
+      "where": "anti-rea.py \u2014 sweep + decoy replace + encrypt res/values strings to assets/antirea/res_strings.json (runtime/ReaResStrings.kt decrypt on demand); JVM test PASS 2026-11-23. Limit: getString() returns the placeholder; the app must call decryptResource(name) explicitly.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md"
+      ]
+    },
+    {
+      "id": "L07",
+      "name": "DEX string sweep verify (control vs protected, 0 must hold)",
+      "counters": "J,A,S",
+      "status": "IMPLEMENTED",
+      "where": "verifier/attack.py",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L08",
+      "name": "R8 rename mapping (class/method rename at build)",
+      "counters": "J,A,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/native.py generate_r8_rules() + anti-rea.py protect writes proguard-rules-antirea.pro to the REA-IR dir; test PASS 2026-11-23. Limit: rules do nothing until applied in the app's own Gradle build.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L09",
+      "name": "Manifest string hide (provider inject + label sweep)",
+      "counters": "A,S",
+      "status": "IMPLEMENTED",
+      "where": "anti-rea.py (ReaGuardProvider entry)",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L10",
+      "name": "Decoy-class camouflage (decoys under com/antirea/decoy/, generic getSecretNN names; NOT under the app package in v1.0)",
+      "counters": "J,A,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L11",
+      "name": "Control-flow flatten (smali)",
+      "counters": "J,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py flatten_smali_file() + anti-rea.py protect; test-app protect PASS (attack 0/0/0, apksigner v2+v3 true) 2026-11-23. Limit: compile/assemble-verified only, never device-tested.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L12",
+      "name": "Native string hide (.so literals)",
+      "counters": "G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/native.py scan/hide_elf_strings() + tools/gen_native_blobs.py + anti-rea.py protect; tested on a compiled arm64 .so + a libdsversion.so copy (size identical, readelf OK) 2026-11-23. Limit: only complete-printable-run needles are replaced; runtime-used strings must not be listed.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L13",
+      "name": "Asset encrypt (assets/ blobs)",
+      "counters": "A,S",
+      "status": "IMPLEMENTED",
+      "where": "transformer/native.py encrypt_asset_bytes() + runtime/ReaAssets.kt + anti-rea.py protect (config assets list); JVM round-trip PASS + APK test PASS 2026-11-23. Limit: the app must call decryptAsset explicitly.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L14",
+      "name": "Debug-line strip (.line directives removed)",
+      "counters": "J,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L15",
+      "name": "Anti-decompile junk (invalid-UTF traps)",
+      "counters": "J",
+      "status": "PARTIAL",
+      "where": "Experimental module transformer/junk.py (5 trap kinds, flag-gated OFF by default via experimental.junk_traps), 28 tests PASS 2026-11-23; docs/L15-JUNK-TRAPS.md. Limits: dex half works on a string-data blob copy only, no CLI wiring, NOT protection yet \u2014 a trapped APK must install/launch on a real phone and break a real decompiler before anyone ships it.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L16",
+      "name": "APK signature check at startup (provider)",
+      "counters": "A,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity.kt, ReaGuardProvider",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L17",
+      "name": "DEX SHA-256 check",
+      "counters": "A,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L18",
+      "name": "Component blob integrity (hash-prefix in every blob)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaRuntime.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L19",
+      "name": "Manifest hash (REA-IR manifest hash)",
+      "counters": "A,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer, assets/antirea/manifest.json",
+      "code_exists": false,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L20",
+      "name": "Re-check on decrypt (verify before every unlock)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaRuntime.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L21",
+      "name": "Tamper refuse (throw, never return a wrong value)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaRuntime.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L22",
+      "name": "File-hash manifest (dex + manifest + blobs)",
+      "counters": "A,F",
+      "status": "IMPLEMENTED",
+      "where": "anti-rea.py (assets/antirea/manifest.json)",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L23",
+      "name": "Installer-origin check (Play vs sideload)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt checkInstallerOrigin (+ ReaRepack classifyInstaller); JVM test PASS 2026-11-23. Signal only, never a refusal alone.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L24",
+      "name": "Signature v2/v3 scheme check",
+      "counters": "A,F",
+      "status": "IMPLEMENTED",
+      "where": "verifier/sigcheck.py + anti-rea.py verify reports schemes; test PASS on control + protected APK (v1/v2/v3) 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L25",
+      "name": "Runtime self-hash (own class hash)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt hashClassBytes/verifySelfHash; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L26",
+      "name": "Build-time watermark (per-build id in manifest)",
+      "counters": "A",
+      "status": "IMPLEMENTED",
+      "where": "tools/watermark.py apply_watermark() + anti-rea.py protect stamps a REA-IR watermark (build_id + built_at); test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L27",
+      "name": "Config hash pinning (rea-ir hash pinned in runtime)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt verifyConfigHash; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L28",
+      "name": "Resource hash check",
+      "counters": "A,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt verifyResourceHashes; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L29",
+      "name": "Native lib hash check",
+      "counters": "G,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt verifyNativeLibHashes; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L30",
+      "name": "Integrity re-check timer (periodic)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaTimer.kt (injectable clock, stops on refusal); JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L31",
+      "name": "Debugger detect (Debug.isDebuggerConnected)",
+      "counters": "D,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L32",
+      "name": "Emulator detect (Build markers)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L33",
+      "name": "Root detect (su binaries, test-keys)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L34",
+      "name": "Frida maps detect (/proc/self/maps scan)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L35",
+      "name": "Frida port detect (27042/27043 via /proc/net/tcp)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L36",
+      "name": "Hook-lib detect (Xposed/Substrate markers)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L37",
+      "name": "Env re-check on sensitive call (checkAll before decrypt-gated actions)",
+      "counters": "F,D",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv.kt + ReaGuardProvider",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L38",
+      "name": "VPN/proxy detect",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt vpnOrProxyDetected; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L39",
+      "name": "Screen-share / screencap detect",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt screenShareDetected (only an active MediaProjection fires; FLAG_SECURE alone deliberately does not); JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L40",
+      "name": "Mock-location detect",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt mockLocationDetected; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L41",
+      "name": "Developer-options detect",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt developerOptionsEnabled; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L42",
+      "name": "USB-debugging detect",
+      "counters": "D,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt usbDebuggingEnabled; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L43",
+      "name": "App-cloner detect",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt appClonerDetected; JVM test PASS 2026-11-23. False positives documented (a folder literally named 'clone' flags; 'dual' is a substring of 'individual').",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L44",
+      "name": "Time-tamper detect (clock skew)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt timeTamperDetected (60 s tolerance); JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L45",
+      "name": "Locale/timezone anomaly flag",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaEnv2.kt localeTimezoneAnomaly; JVM test PASS 2026-11-23. Weakest signal of the batch \u2014 flag only, never refuse.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L46",
+      "name": "In-memory-only decrypt (never write plain to disk/log)",
+      "counters": "F,R",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaRuntime.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L47",
+      "name": "Split keys (neither part alone is the key)",
+      "counters": "J,A,G,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/crypto.py",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L48",
+      "name": "Per-build key rotation (fresh random keys every run)",
+      "counters": "J,A,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/crypto.py",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L49",
+      "name": "Native check stub (.so integrity gate)",
+      "counters": "G,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/native/reagate.c -> lib/arm64-v8a/libreagate.so (NDK 22.1.7171670, real compiled .so, 7,144 B) + runtime/ReaNative.kt (native-first, Kotlin fallback) + anti-rea.py copies the .so into lib/arm64-v8a/; JVM test PASS 2026-11-23. Limit: arm64-v8a only, never device-tested.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md"
+      ]
+    },
+    {
+      "id": "L50",
+      "name": "Delayed silent failure (refuse a sensitive action after N calls once integrity failed)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaTraps.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L51",
+      "name": "Honeypot tripwire (use of a fake value records an event)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaTraps.kt",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L52",
+      "name": "Decoy classes (plausible, useless)",
+      "counters": "J,A,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L53",
+      "name": "Dead-code maze (branch chains resolving to 0)",
+      "counters": "J,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L54",
+      "name": "Anti-hook re-check inside decrypt path",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt decryptWithEnvCheck; JVM test PASS 2026-11-23 (env-fire never decrypts).",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L55",
+      "name": "String chunking (split literals across calls)",
+      "counters": "J,A,S",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py chunk_string_literals() + anti-rea.py protect; test-app protect PASS, 2,165 strings chunked, witness literal 0 in protected dex 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L56",
+      "name": "Reflection-based access (no direct refs)",
+      "counters": "J,G",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt invokeReflectively; JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L57",
+      "name": "Dynamic class loading (dex in assets)",
+      "counters": "J,A",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaIntegrity2.kt loadClassFromJar (+ Android loadClassFromDex via DexClassLoader, device part untested); JVM test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L58",
+      "name": "Opaque predicates (always-true/false branches)",
+      "counters": "G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py insert_opaque_predicates() + anti-rea.py protect; test-app protect PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L59",
+      "name": "Method-call indirection",
+      "counters": "J,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py indirect_method_calls() + write_indirect_stub_class() + anti-rea.py protect; test-app protect PASS (setContentView routed through ReaIndirect) 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L60",
+      "name": "Runtime code mutation (self-modifying)",
+      "counters": "F",
+      "status": "PLANNED",
+      "where": "NOT SHIPPED by decision 2026-11-23 \u2014 docs/L60-WHY-NOT-SHIPPED.md: ART has no stable method layout to patch safely, decrypted code stays in RAM anyway, it would duplicate L57/L13, and Play Protect flags runtime patching as malware. Goal covered by L57, L13, L102 + server attestation.",
+      "code_exists": false,
+      "evidence_files": []
+    },
+    {
+      "id": "L61",
+      "name": "Attestation payload format (integrity + env findings, signed)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "docs/SERVER.md, transformer (payload builder)",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md",
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L62",
+      "name": "Tripwire log format (honeypot-use / tamper events)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "docs/SERVER.md",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L63",
+      "name": "Honeypot-use flag (fake endpoint/secret use = flag account)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "docs/TRAPS.md, docs/SERVER.md",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L64",
+      "name": "Server-side component-hash reject",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "server/reference.py verify_component_hashes() + server/test_server.py; unit tests PASS 2026-11-23. Reference only \u2014 no live server changed.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L65",
+      "name": "Device binding (attestation \u2192 device id)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "server/reference.py bind_device()/check_device_binding() (stores SHA-256 of the id only); unit tests PASS 2026-11-23. Reference only.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L66",
+      "name": "Rate-limit on failed attestations",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "server/reference.py FailedAttestationLimiter (5 failures/hour sliding window); unit tests PASS 2026-11-23. In-memory \u2014 a production server needs real storage.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L67",
+      "name": "Remote kill-switch (revoke a build)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "server/reference.py revoke_build()/is_build_revoked(); unit tests PASS 2026-11-23. Reference only.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L68",
+      "name": "Anomaly scoring (env findings \u2192 score)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "server/reference.py score_findings() (0-100, clean/suspicious/blocked bands); unit tests PASS 2026-11-23. Reference only.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L69",
+      "name": "Audit export (tripwire events)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "server/reference.py export_events()/parse_export() (JSONL, antirea-audit/v1); unit tests PASS 2026-11-23. Reference only.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L70",
+      "name": "Key rotation via server",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "server/reference.py rotate_keys()/old_key_still_valid() (7-day grace); unit tests PASS 2026-11-23. Reference only.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L71",
+      "name": "Fake endpoints (plausible admin/debug URLs)",
+      "counters": "J,A,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py, docs/TRAPS.md",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L72",
+      "name": "Fake secrets (plausible API keys/tokens)",
+      "counters": "J,A,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py, docs/TRAPS.md",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L73",
+      "name": "Fake keys (plausible key material)",
+      "counters": "J,A,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py, docs/TRAPS.md",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L74",
+      "name": "Decoy API (fake methods returning fake data)",
+      "counters": "J,G,F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py (decoy classes)",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L75",
+      "name": "Maze classes (analysis-time sink)",
+      "counters": "J,G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/smali.py",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L76",
+      "name": "Fake login flow (decoy auth that always flags)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py fake_login_flow() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L77",
+      "name": "Fake crash (decoy crash log with marker)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py fake_crash() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23. A string only, never a real crash.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L78",
+      "name": "Slow maze (decoy with sleeps)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py slow_maze() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23. Only runs if an analyst invokes the decoy.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L79",
+      "name": "Fake update prompt (decoy)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py fake_update_prompt() + anti-rea.py protect plants the decoy XML; tests PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L80",
+      "name": "Fake config file (decoy JSON)",
+      "counters": "A,S",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py fake_config_file() + anti-rea.py protect plants the decoy JSON; tests PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L81",
+      "name": "Fake native lib (decoy .so)",
+      "counters": "G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py fake_native_lib() + anti-rea.py protect plants it under assets/ (NOT lib/); tests PASS 2026-11-23. Header-only ELF, NOT loadable \u2014 a placeholder only.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L82",
+      "name": "Fake stack traces",
+      "counters": "G",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py fake_stack_traces() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L83",
+      "name": "Fake error messages with markers",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py fake_error_messages() + anti-rea.py protect plants the decoy text; tests PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L84",
+      "name": "Honeypot admin panel (decoy)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py honeypot_admin_panel() + anti-rea.py protect plants the decoy smali; tests PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L85",
+      "name": "Trap chaining (one trap leads to a second trap)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "transformer/traps.py chain_traps() + anti-rea.py protect records the chain in REA-IR; tests PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L86",
+      "name": "Control-vs-protected attack test (0 is never vacuous)",
+      "counters": "J,A,S",
+      "status": "IMPLEMENTED",
+      "where": "verifier/attack.py",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L87",
+      "name": "Tamper test (1-byte flip \u2192 refuse)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "verifier/tamper.py",
+      "code_exists": true,
+      "evidence_files": [
+        "VERIFICATION-REPORT-v1.0.md",
+        "tests/bridge-rea-ir/bridge-2.14.0-v10-protected.antirea.json",
+        "tests/testapp-rea-ir/testapp-protected.antirea.json"
+      ]
+    },
+    {
+      "id": "L88",
+      "name": "CI gate (protect+verify in one command)",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "anti-rea.py ci subcommand (protect + verify, non-zero on any failure); test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L89",
+      "name": "Frida runtime test (on device)",
+      "counters": "F",
+      "status": "IMPLEMENTED",
+      "where": "Harness verifier/frida_test/ (frida_test.py + frida_script.js + README), 5 checks F1\u2013F5 with PASS/BREAK/INCONCLUSIVE rules, 20 tests PASS + --dry-run OK 2026-11-23. LIVE DEVICE RUN still PENDING \u2014 needs a test phone + matching frida-server.",
+      "code_exists": false,
+      "evidence_files": []
+    },
+    {
+      "id": "L90",
+      "name": "Ghidra smoke (native)",
+      "counters": "G",
+      "status": "IMPLEMENTED",
+      "where": "verifier/ghidra_smoke.py + verifier/ghidra_scripts/AntiReaSmoke.java (headless Ghidra 12.2, 120 s timeout); smoke PASS on a tiny .so (13 functions, needle hit) 2026-11-23. Smoke test only.",
+      "code_exists": true,
+      "evidence_files": [
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L91",
+      "name": "Red-team test (user's RE contact)",
+      "counters": "all",
+      "status": "PARTIAL",
+      "where": "Tester pack regenerated 2026-11-23 with the latest protected APKs + updated brief (new layers L101/L102/L103, Frida harness) \u2014 READY-TO-RUN. Live red-team run pending the user's tester; only their report-back completes this layer.",
+      "code_exists": false,
+      "evidence_files": []
+    },
+    {
+      "id": "L92",
+      "name": "Regression suite (re-run on every build)",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "tools/run_all.py (11 suites, per-suite pass/fail, JSON report); full run PASS after manifest regen 2026-11-23 (see FULL-LAYERS-REPORT.md).",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L93",
+      "name": "Layer coverage report (per-build)",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "tools/layer_coverage.py + layers --coverage; test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L94",
+      "name": "Service API (protection-as-a-service)",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "service/api.py (stdlib http.server, 127.0.0.1:8931, POST /protect, GET /status",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L95",
+      "name": "Web upload + dashboard",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "service/dashboard.html served by service/api.py; fetched HTTP 200 PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L96",
+      "name": "Multi-app profiles (per-app presets)",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "tools/profiles.py + --profile (strict/standard/light + custom); test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L97",
+      "name": "Key management service",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "tools/keyvault.py (PBKDF2 master key, HMAC-tagged store, rotate/revoke); selftest PASS 2026-11-23. Local vault only, not a production KMS.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L98",
+      "name": "Build-plugin (Gradle)",
+      "counters": "\u2014",
+      "status": "PARTIAL",
+      "where": "Plugin source gradle-plugin/ (AntiReaPlugin/Extension/ProtectTask/Command; docs.gradle.org cited in README), 26 logic tests PASS 2026-11-23. Limits: Kotlin NEVER compiled (no kotlinc in this VM), NEVER run under Gradle (daemon broken) \u2014 needs a working Gradle host to verify.",
+      "code_exists": false,
+      "evidence_files": []
+    },
+    {
+      "id": "L99",
+      "name": "iOS profile (same REA-IR)",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "profiles/ios.yaml maps all 103 layers (58 APPLIES / 37 ADAPTED / 8 DOES-NOT-APPLY), tools/test_ios_profile.py 12 tests PASS 2026-11-23. Limit: profile defined and validated only \u2014 NEVER built on iOS (no toolchain in this VM).",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L100",
+      "name": "Layer marketplace (community layers)",
+      "counters": "\u2014",
+      "status": "IMPLEMENTED",
+      "where": "tools/layer_marketplace.py + plugins/sample_hello_layer.py; test PASS 2026-11-23.",
+      "code_exists": true,
+      "evidence_files": []
+    },
+    {
+      "id": "L101",
+      "name": "On-device modder-app block (MT Manager, Apktool M, NP Manager, APK Editor, Lucky Patcher + 8 more; 13 verified package names as encrypted blobs) \u2014 installed-check + running-process check + known-dir check; refuse sensitive action while present, never delete/kill/harm",
+      "counters": "A,S",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaModBlock.kt, runtime/ModBlockData.kt (generated by tools/gen_modblock_blobs.py), layers/MT-LIKE-BLOCKLIST.md, runtime/tests/ModBlockTest.kt \u2014 JVM test PASS 2026-11-23. Limits: clones with renamed packages evade the name check; Android 11+ installed-check needs host-app <queries> entries (CLI does not auto-inject them, on purpose \u2014 see blocklist doc); GameGuardian randomises its package name and is NOT blocked (UNVERIFIED).",
+      "code_exists": true,
+      "evidence_files": [
+        "GAMEGUARDIAN-FIX-REPORT.md",
+        "SELF-PROTECT-REPORT.md",
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L102",
+      "name": "GameGuardian / memory-editor defence \u2014 TracerPid + /proc/self/stat state 't' + /proc/self/maps markers (gameguardian, libgg, bulldog-daemon, base data name; bare \"gg\" deliberately NOT a marker) + verified GG data dirs + root+trace combined verdict + ObfuscatedLong/ObfuscatedInt (values never stored plain in RAM; checksum, read returns null on tamper)",
+      "counters": "F,R,D",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaTrace.kt, runtime/ReaMemory.kt, runtime/ReaEnv.kt (findings in checkAll), runtime/tests/GameGuardianFixTest.kt \u2014 JVM test PASS 2026-11-23. Limits: root + patience wins in the end; virtual-space (no-root) GG mode not caught; plain value exists briefly in a local during get()/set(); server must never trust client-reported numbers (Bridge ledger is the example).",
+      "code_exists": true,
+      "evidence_files": [
+        "GAMEGUARDIAN-FIX-REPORT.md",
+        "TOOL-COVERAGE.md"
+      ]
+    },
+    {
+      "id": "L103",
+      "name": "Renamed / repacked APK defence \u2014 package-name exact match + signing-certificate SHA-256 compare (hex-to-hex, never hash-a-hash) + encrypted expected-hash blob (tools/make_sig_blob.py) + installer signal (Play vs other, never a refusal alone)",
+      "counters": "A,F",
+      "status": "IMPLEMENTED",
+      "where": "runtime/ReaRepack.kt, tools/make_sig_blob.py, runtime/tests/GameGuardianFixTest.kt \u2014 JVM test PASS 2026-11-23. Limits: multi-signer APKs (only first cert checked); CLI auto-injection of the expected-hash blob is PLANNED (developer makes the blob with the tool today).",
+      "code_exists": true,
+      "evidence_files": [
+        "GAMEGUARDIAN-FIX-REPORT.md",
+        "TOOL-COVERAGE.md"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# Anti-REA v1.0 — never commit these.
+__pycache__/
+*.pyc
+*.idsig
+runtime/build/
+runtime/tests/test.jar
+# Real keystores / keys — the CLI generates an ephemeral test keystore
+# per run; a user-supplied keystore must never be committed.
+*.keystore
+*.jks
+*.pem
+*.key

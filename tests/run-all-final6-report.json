@@ -1,0 +1,94 @@
+{
+  "generated_utc": "2026-11-23T09:01:09.225419+00:00",
+  "suites": [
+    {
+      "suite": "self-check",
+      "pass": true,
+      "detail": "SELF-CHECK OK: 64 files verified against anti-rea.manifest.json"
+    },
+    {
+      "suite": "jvm-runtime",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-modblock",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-ggfix",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "jvm-resstrings",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "cli-verify",
+      "pass": true,
+      "detail": "attack verdict=PASS rc=0"
+    },
+    {
+      "suite": "coverage",
+      "pass": true,
+      "detail": "total=103 counts={'IMPLEMENTED': 99, 'PARTIAL': 4}"
+    },
+    {
+      "suite": "keyvault",
+      "pass": true,
+      "detail": "KEYVAULT-SELFTEST-PASS"
+    },
+    {
+      "suite": "marketplace",
+      "pass": true,
+      "detail": "MARKETPLACE-TEST-PASS: 1 plugin(s)"
+    },
+    {
+      "suite": "profiles",
+      "pass": true,
+      "detail": "light=18 strict=99 (light \u2282 strict)"
+    },
+    {
+      "suite": "ghidra-smoke",
+      "pass": true,
+      "detail": "ghidra verdict=PASS rc=0"
+    },
+    {
+      "suite": "junk-traps",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "suite": "frida-harness",
+      "pass": true,
+      "detail": "unit OK + dry-run rc=0"
+    },
+    {
+      "suite": "ios-profile",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "suite": "gradle-plugin",
+      "pass": true,
+      "detail": "OK"
+    },
+    {
+      "suite": "jvm-methoddecrypt",
+      "pass": true,
+      "detail": "TEST-PASS"
+    },
+    {
+      "suite": "self-changing",
+      "pass": true,
+      "detail": "flag tests OK + blob self-test rc=0"
+    }
+  ],
+  "passed": 17,
+  "failed": [],
+  "skipped": [],
+  "verdict": "PASS"
+}
